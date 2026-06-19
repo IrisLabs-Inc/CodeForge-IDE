@@ -85,6 +85,9 @@ public class FileTree extends JTree {
                         case "php":
                             Nukepad.getInstance().text.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_PHP);
                             break;
+                        case "rs":
+                            Nukepad.getInstance().text.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_RUST);
+                            break;
 
                         default:
                             Nukepad.getInstance().text.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_NONE);

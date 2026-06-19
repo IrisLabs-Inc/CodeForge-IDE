@@ -4,6 +4,9 @@
 
 package com.adonis.Nukepad;
 
+import com.adonis.Nukepad.plugins.PluginContext;
+import com.adonis.Nukepad.plugins.PluginManager;
+import com.adonis.Nukepad.plugins.PluginsDialog;
 import org.fife.ui.rsyntaxtextarea.parser.AbstractParser;
 import org.fife.ui.rsyntaxtextarea.parser.DefaultParseResult;
 import org.fife.ui.rsyntaxtextarea.parser.DefaultParserNotice;
@@ -14,6 +17,7 @@ import com.formdev.flatlaf.FlatDarculaLaf;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
@@ -85,6 +89,8 @@ class Nukepad extends JFrame implements ActionListener {
     private GitRunner gitRunner; // Runs git
     private GitPanel gitPanel; // The git pannel
     private File activeDirectory; // Active directory, usefull for git
+    private ActivityBar activityBar;
+    private PluginManager pluginManager;
 
     private final File CATEGORIES_CONFIG_FILE = new File(System.getProperty("user.home"), ".nukepad_categories.cfg");
     private Map<String, List<File>> categoriesData = new LinkedHashMap<>();
@@ -143,239 +149,202 @@ class Nukepad extends JFrame implements ActionListener {
         RTextScrollPane scroll = new RTextScrollPane(text);
         scroll.setRowHeaderView(new LineNumberPanel(text));
         tabs.addTab("Untitled", scroll);
+        
+        PluginManager pluginManager = new PluginManager(
+            System.getProperty("user.home") + "/.nukepad_plugins"
+        );
+        PluginContext pluginContext = new PluginContext(this, text);
+        pluginManager.loadPlugins(pluginContext);
+        
+        text.addCaretListener(e -> pluginManager.notifyTextChange(text.getText()));
 
-        JMenuBar menb = new JMenuBar();
-        JMenu men1 = new JMenu("File");
+        activityBar = new ActivityBar();
 
-        JMenu menit1 = new JMenu("New");
-        String[][] fileTypes = { // File types shown in the New submenu and their default text
-                { "Java Class", "java",
-                        "public class %s {\n    public static void main(String[] args) {\n        System.out.println(\"Hello World!\");\n    }\n}\n" },
-                { "C++ Source", "cpp",
-                        "#include <iostream>\n\nint main() {\n    std::cout << \"Hello World!\" << std::endl;\n    return 0;\n}\n" },
-                { "C Source", "c",
-                        "#include <stdio.h>\n\nint main() {\n    printf(\"Hello World!\\n\");\n    return 0;\n}\n" },
-                { "Python Script", "py", "print('Hello World!')\n" },
-                { "JavaScript File", "js", "console.log('Hello World!');\n" },
-                { "TypeScript File", "ts", "console.log('Hello World!');\n" }
+        JPopupMenu filePopup = new JPopupMenu();
+        JMenu mNew = new JMenu("New");
+        String[][] fileTypes2 = {
+            {"Java Class","java","public class %s {\n    public static void main(String[] args) {\n        System.out.println(\"Hello World!\");\n    }\n}\n"},
+            {"C++ Source","cpp","#include <iostream>\n\nint main() {\n    std::cout << \"Hello World!\" << std::endl;\n    return 0;\n}\n"},
+            {"C Source","c","#include <stdio.h>\n\nint main() {\n    printf(\"Hello World!\\n\");\n    return 0;\n}\n"},
+            {"Python Script","py","print('Hello World!')\n"},
+            {"JavaScript File","js","console.log('Hello World!');\n"},
+            {"TypeScript File","ts","console.log('Hello World!');\n"},
         };
-        for (String[] type : fileTypes) { // Adds the selected file type from the new submenu
-            JMenuItem item = new JMenuItem(type[0]);
-            item.addActionListener(e -> createNewLanguageFile(type[1], type[2]));
-            menit1.add(item);
+        for (String[] type : fileTypes2) {
+            JMenuItem mi = new JMenuItem(type[0]);
+            mi.addActionListener(ev -> createNewLanguageFile(type[1], type[2]));
+            mNew.add(mi);
         }
+        JMenuItem miOpen  = new JMenuItem("Open");  miOpen .addActionListener(this);
+        JMenuItem miSave  = new JMenuItem("Save");  miSave .addActionListener(this);
+        JMenuItem miPrint = new JMenuItem("Print"); miPrint.addActionListener(this);
+        JMenuItem miQuit  = new JMenuItem("Quit");  miQuit .addActionListener(this);
+        filePopup.add(mNew); filePopup.add(miOpen); filePopup.add(miSave);
+        filePopup.add(miPrint); filePopup.addSeparator(); filePopup.add(miQuit);
 
-        JMenuItem menit2 = new JMenuItem("Open"); // Self explainable, adds menu items for the JMenu
-        JMenuItem menit3 = new JMenuItem("Save");
-        JMenuItem menit4 = new JMenuItem("Print");
-        JMenuItem menit5 = new JMenuItem("Quit");
-
-        menit2.addActionListener(this); // Adds action listeners to the menu items (tells them what to do, see code
-                                        // below)
-        menit3.addActionListener(this);
-        menit4.addActionListener(this);
-        menit5.addActionListener(this);
-
-        men1.add(menit1); // Adds menu items to a certain menu
-        men1.add(menit2);
-        men1.add(menit3);
-        men1.add(menit4);
-        men1.add(menit5);
-
-        JMenu men2 = new JMenu("Edit"); // Same as above
-        JMenuItem menit6 = new JMenuItem("Cut");
-        JMenuItem menit7 = new JMenuItem("Copy");
-        JMenuItem menit8 = new JMenuItem("Paste");
-
-        menit6.addActionListener(this);
-        menit7.addActionListener(this);
-        menit8.addActionListener(this);
-
-        JMenu men3 = new JMenu("View"); // Dark theme and light theme switcher, disguised as a menu
-        JMenuItem darkTheme = new JMenuItem("Dark Theme");
-        JMenuItem lightTheme = new JMenuItem("Light Theme");
-
-        darkTheme.addActionListener(e -> { // Action listener for the dark theme button
-            try {
-
-                ThemeManager.save("dark"); // Saves the theme in a .txt file
-                clearThemeOverrides(); // Clears the theme overrides (duuh)
-                UIManager.setLookAndFeel(new FlatDarculaLaf()); // Sets the UI look and feel to dark mode
-                applyThemeToAllTabs(); // Applies the theme to all tabs
-                applyTerminalTheme(); // Applies the theme to the terminal
-                interactiveTerminal.applyTheme(true); // Applies the theme to the interactive terminal
-                SwingUtilities.updateComponentTreeUI(frame); // Updates the UI so as to adapt to the theme
-                frame.repaint(); // Repaints the UI
-
-            } catch (Exception ex) {
-                ex.printStackTrace(); // Prints the stack trace (error message) if something goes wrong (.00000001%
-                                      // chance it happens)
-            }
+        activityBar.addLogo(e -> {
+            filePopup.show(activityBar, ActivityBar.getBarWidth(), 0);
         });
 
-        lightTheme.addActionListener(e -> { // Same thing as above, only this is for light theme
-            try {
+// Edit popup
+        JPopupMenu editPopup = new JPopupMenu();
+        JMenuItem miCut   = new JMenuItem("Cut");   miCut  .addActionListener(this);
+        JMenuItem miCopy  = new JMenuItem("Copy");  miCopy .addActionListener(this);
+        JMenuItem miPaste = new JMenuItem("Paste"); miPaste.addActionListener(this);
+        editPopup.add(miCut); editPopup.add(miCopy); editPopup.add(miPaste);
 
-                ThemeManager.save("light");
-                clearThemeOverrides();
-                UIManager.setLookAndFeel(new FlatIntelliJLaf());
-                applyThemeToAllTabs();
-                applyTerminalTheme();
-                interactiveTerminal.applyTheme(true);
-                SwingUtilities.updateComponentTreeUI(frame);
-                frame.repaint();
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        });
-        men3.add(darkTheme); // Adds the dark and light theme switcher to a menu
-        men3.add(lightTheme);
-        menb.add(men3);
-
-        JButton button1 = new JButton("Compile");
-        button1.addActionListener(this);
-
-        JButton button2 = new JButton("Run");
-        button2.addActionListener(this);
-
-        JButton button3 = new JButton("Author's signature");
-        button3.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                try {
-                    java.awt.Desktop.getDesktop().browse(URI.create("https://github.com/alexandru-andoni"));
-                } catch (IOException ex) {
-                    throw new RuntimeException(ex);
-                }
-            }
+        ActivityBar.IconBtn btnEdit = activityBar.addTop("edit",
+            ActivityBar.PAINT_EDIT, "Edit", e -> {
+            editPopup.show(activityBar, ActivityBar.getBarWidth(), activityBar.getComponent(0).getHeight());
         });
 
-        JButton buttonTerminal = new JButton("Terminal");
-        buttonTerminal.addActionListener(e -> toggleTerminal());
-        men2.add(menit6);
-        men2.add(menit7);
-        men2.add(menit8);
 
-        JMenu gitMenu = new JMenu("Git");
-        String[][] gitActions = {
-                { "Init", "init" },
-                { "Status", "status" },
-                { "Pull", "pull" },
-                { "Push", "push", "--set-upstream", "origin", "HEAD" },
-                { "Log", "log", "--oneline", "-20" },
-                { "Diff", "diff" },
-
+// Git popup
+        JPopupMenu gitPopup = new JPopupMenu();
+        String[][] gitActions2 = {
+            {"Init","init"},{"Status","status"},{"Pull","pull"},
+            {"Push","push","--set-upstream","origin","HEAD"},
+            {"Log","log","--oneline","-20"},{"Diff","diff"},
         };
-        for (String[] action : gitActions) {
+        for (String[] action : gitActions2) {
             JMenuItem item = new JMenuItem(action[0]);
             String[] args = Arrays.copyOfRange(action, 1, action.length);
-            item.addActionListener(e -> {
+            item.addActionListener(ev -> {
                 File dir = getSelectedDirectory();
-                gitRunner.run(dir, () -> {
-                    if (gitPanel != null) {
-                        gitPanel.setRepoDir(dir);
-                    }
-                }, args);
+                gitRunner.run(dir, () -> { if (gitPanel!=null) gitPanel.setRepoDir(dir); }, args);
             });
-            gitMenu.add(item);
+            gitPopup.add(item);
         }
-
-        JMenu branchMenu = new JMenu("Branch");
-        JMenuItem newBranch = new JMenuItem("New branch...");
-        newBranch.addActionListener(e -> {
-            String name = JOptionPane.showInputDialog(frame, "Branch name:");
-            if (name != null && !name.isBlank()) {
-                File dir = getSelectedDirectory();
-                if (dir == null) {
-                    JOptionPane.showMessageDialog(frame, "No directory selected. Please select a folder first.",
-                            "No Directory", JOptionPane.WARNING_MESSAGE);
-                    return;
-                }
-                gitRunner.run(dir, () -> {
-                    if (gitPanel != null) {
-                        gitPanel.setRepoDir(dir);
-                    }
-                }, "checkout", "-b", name);
+// Branch submenu
+        JMenu branchSub = new JMenu("Branch");
+        JMenuItem newBranchItem = new JMenuItem("New branch...");
+        newBranchItem.addActionListener(ev -> {
+            String bname = JOptionPane.showInputDialog(frame, "Branch name:");
+            if (bname != null && !bname.isBlank()) {
+            File dir = getSelectedDirectory();
+                if (dir == null) { JOptionPane.showMessageDialog(frame, "No directory selected."); return; }
+                gitRunner.run(dir, () -> { if (gitPanel!=null) gitPanel.setRepoDir(dir); }, "checkout","-b",bname);
             }
         });
-        branchMenu.add(newBranch);
-        gitMenu.add(branchMenu);
-
-        JMenu remoteMenu = new JMenu("Remote");
-
-        JMenuItem addOrigin = new JMenuItem("Add Remote Origin...");
-        addOrigin.addActionListener(e -> {
+        branchSub.add(newBranchItem);
+        gitPopup.add(branchSub);
+// Remote submenu
+        JMenu remoteSub = new JMenu("Remote");
+        JMenuItem addOriginItem = new JMenuItem("Add Remote Origin...");
+        addOriginItem.addActionListener(ev -> {
             File dir = getSelectedDirectory();
-            if (dir == null) {
-                JOptionPane.showMessageDialog(frame, "No directory selected. Please select a folder first.",
-                        "No Directory", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+            if (dir == null) { JOptionPane.showMessageDialog(frame,"No directory selected."); return; }
             String url = JOptionPane.showInputDialog(frame, "Enter remote origin URL:");
-            if (url != null && !url.isBlank()) {
-                gitRunner.run(dir, () -> {
-                    if (gitPanel != null)
-                        gitPanel.setRepoDir(dir);
-                }, "remote", "add", "origin", url.trim());
-            }
+            if (url != null && !url.isBlank())
+                gitRunner.run(dir, () -> { if (gitPanel!=null) gitPanel.setRepoDir(dir); }, "remote","add","origin",url.trim());
         });
-        remoteMenu.add(addOrigin);
-
-        JMenuItem setOrigin = new JMenuItem("Set Remote Origin URL...");
-        setOrigin.addActionListener(e -> {
+        JMenuItem setOriginItem = new JMenuItem("Set Remote Origin URL...");
+        setOriginItem.addActionListener(ev -> {
             File dir = getSelectedDirectory();
-            if (dir == null) {
-                JOptionPane.showMessageDialog(frame, "No directory selected. Please select a folder first.",
-                        "No Directory", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+            if (dir == null) { JOptionPane.showMessageDialog(frame,"No directory selected."); return; }
             String url = JOptionPane.showInputDialog(frame, "Enter new remote origin URL:");
-            if (url != null && !url.isBlank()) {
-                gitRunner.run(dir, () -> {
-                    if (gitPanel != null)
-                        gitPanel.setRepoDir(dir);
-                }, "remote", "set-url", "origin", url.trim());
-            }
+            if (url != null && !url.isBlank())
+                gitRunner.run(dir, () -> { if (gitPanel!=null) gitPanel.setRepoDir(dir); }, "remote","set-url","origin",url.trim());
         });
-        remoteMenu.add(setOrigin);
-
-        JMenuItem pushOrigin = new JMenuItem("Push to Origin");
-        pushOrigin.addActionListener(e -> {
+        JMenuItem pushOriginItem = new JMenuItem("Push to Origin");
+        pushOriginItem.addActionListener(ev -> {
             File dir = getSelectedDirectory();
-            if (dir == null) {
-                JOptionPane.showMessageDialog(frame, "No directory selected. Please select a folder first.",
-                        "No Directory", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            gitRunner.run(dir, () -> {
-                if (gitPanel != null)
-                    gitPanel.setRepoDir(dir);
-            }, "push", "-u", "origin", "HEAD");
+            if (dir == null) { JOptionPane.showMessageDialog(frame,"No directory selected."); return; }
+            gitRunner.run(dir, () -> { if (gitPanel!=null) gitPanel.setRepoDir(dir); }, "push","-u","origin","HEAD");
         });
-        remoteMenu.add(pushOrigin);
+        remoteSub.add(addOriginItem); remoteSub.add(setOriginItem); remoteSub.add(pushOriginItem);
+        gitPopup.add(remoteSub);
+        
+        JPopupMenu pluginMenu = new JPopupMenu();
+        JMenuItem managePlugins = new JMenuItem("Manage plugins");
+        JMenuItem pluginsDir = new JMenuItem("Open plugins folder");
+        
+        managePlugins.addActionListener(e -> {
+            new PluginsDialog(frame, pluginManager, pluginManager.getPluginDir()).setVisible(true);
+        });
+        
+        pluginsDir.addActionListener(e -> {
+            try {
+            File pluginFolder = pluginManager.getPluginDir();
+                if (!pluginFolder.exists()) {
+                    pluginFolder.mkdirs();
+                }
+                Desktop.getDesktop().open(pluginFolder);
+            } catch (Exception ex) { 
+                ex.printStackTrace(); 
+            }
+        });
+        pluginMenu.add(managePlugins);
+        pluginMenu.add(pluginsDir);
+        
+        JPopupMenu settingsPopup = new JPopupMenu();
+JMenuItem miDark  = new JMenuItem("Dark Theme");
+JMenuItem miLight = new JMenuItem("Light Theme");
 
-        gitMenu.add(remoteMenu);
-        menb.add(gitMenu);
+miDark.addActionListener(ev -> {
+    try {
+        ThemeManager.save("dark");
+        clearThemeOverrides();
+        UIManager.setLookAndFeel(new FlatDarculaLaf());
+        applyThemeToAllTabs(); applyTerminalTheme();
+        interactiveTerminal.applyTheme(true);
+        activityBar.applyTheme();
+        SwingUtilities.updateComponentTreeUI(frame); frame.repaint();
+    } catch (Exception ex) { ex.printStackTrace(); }
+});
 
-        menb.add(men1);
-        menb.add(men2);
-        menb.add(button1);
-        menb.add(button2);
-        menb.add(button3);
-        menb.add(buttonTerminal);
+miLight.addActionListener(ev -> {
+    try {
+        ThemeManager.save("light");
+        clearThemeOverrides();
+        UIManager.setLookAndFeel(new FlatIntelliJLaf());
+        applyThemeToAllTabs(); applyTerminalTheme();
+        interactiveTerminal.applyTheme(true);
+        activityBar.applyTheme();
+        SwingUtilities.updateComponentTreeUI(frame); frame.repaint();
+    } catch (Exception ex) { ex.printStackTrace(); }
+});
 
-        JButton btnSidebarPos = new JButton("☰ Sidebar: Left");
-        btnSidebarPos.addActionListener(e -> {
+settingsPopup.add(miDark);
+settingsPopup.add(miLight);
+
+activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)", e ->
+    settingsPopup.show(activityBar, ActivityBar.getBarWidth(), 0));
+
+        activityBar.addDividerTop();
+        activityBar.addTop("plugins", ActivityBar.PAINT_PLUGINS, "Plugins", e ->
+        pluginMenu.show(activityBar, ActivityBar.getBarWidth(), 0));
+
+        activityBar.addTop("git", ActivityBar.PAINT_GIT, "Git", e ->
+            gitPopup.show(activityBar, ActivityBar.getBarWidth(), 0));
+
+        activityBar.addDividerTop();
+
+
+        activityBar.addTop("compile", ActivityBar.PAINT_COMPILE, "Compile",
+            e -> actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Compile")));
+
+        activityBar.addTop("run", ActivityBar.PAINT_RUN, "Run",
+            e -> actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Run")));
+
+
+        activityBar.addTop("terminal", ActivityBar.PAINT_TERM, "Toggle Terminal",
+            e -> toggleTerminal());
+        activityBar.addDividerTop();
+
+
+        final String[] sidebarLabels = {"☰ Left","☰ Center","☰ Right"};
+        final int[] sidebarIdx = {0};
+        activityBar.addTop("sidebar", ActivityBar.PAINT_SIDEBAR, "Cycle Sidebar Position", e -> {
             cycleSidebarPosition();
-            switch (sidebarPosition) {
-                case LEFT -> btnSidebarPos.setText("☰ Sidebar: Left");
-                case RIGHT -> btnSidebarPos.setText("☰ Sidebar: Right");
-                case CENTER -> btnSidebarPos.setText("☰ Sidebar: Center");
-            }
+            sidebarIdx[0] = (sidebarIdx[0]+1) % 3;
         });
-        menb.add(btnSidebarPos);
 
-        frame.setJMenuBar(menb);
+        activityBar.addBottom("author", ActivityBar.PAINT_AUTHOR, "Author's GitHub", e -> {
+            try { java.awt.Desktop.getDesktop().browse(java.net.URI.create("https://github.com/clatitapitita")); }
+            catch (java.io.IOException ex) { ex.printStackTrace(); }
+        });
+        
         RTextScrollPane scroll2 = new RTextScrollPane(text);
         scroll2.setRowHeaderView(new LineNumberPanel(text));
         tabs = new JTabbedPane();
@@ -414,6 +383,7 @@ class Nukepad extends JFrame implements ActionListener {
                 loadingLabel,
                 verticalSplit);
         outerHSplit.setDividerLocation(280);
+        frame.add(activityBar, BorderLayout.WEST);
         frame.add(outerHSplit, BorderLayout.CENTER);
 
         frame.setSize(1280, 720);
@@ -588,12 +558,18 @@ class Nukepad extends JFrame implements ActionListener {
                 });
 
                 JTabbedPane leftTabs = new JTabbedPane();
-                leftTabs.addTab("Files", treeScroll);
-                leftTabs.addTab("Search", null);
-                leftTabs.addTab("Categories", categoriesScroll);
-                leftTabs.addTab("Opened Projects", openedScroll);
-                leftTabs.addTab("Git", gitPanel);
-                leftTabs.setPreferredSize(new Dimension(280, 0));
+                  ImageIcon filesIcon = new ImageIcon(getClass().getResource("/icons/files.png"));
+                  ImageIcon searchIcon = new ImageIcon(getClass().getResource("/icons/search.png"));
+                  ImageIcon categoriesIcon = new ImageIcon(getClass().getResource("/icons/categories.png"));
+                  ImageIcon projectsIcon = new ImageIcon(getClass().getResource("/icons/projects.png"));
+                  ImageIcon gitIcon = new ImageIcon(getClass().getResource("/icons/git.png"));
+                  ImageIcon openedProjectsIcon = new ImageIcon(getClass().getResource("/icons/openedprojects.png"));
+
+                leftTabs.addTab(null, scaleIcon(filesIcon, 24), treeScroll, "Files");
+                leftTabs.addTab(null, scaleIcon(searchIcon, 24), null, "Search");
+                leftTabs.addTab(null, scaleIcon(categoriesIcon, 24), categoriesScroll, "Categories");
+                leftTabs.addTab(null, scaleIcon(openedProjectsIcon, 24), openedScroll, "Opened Projects");
+                leftTabs.addTab(null, scaleIcon(gitIcon, 24), gitPanel, "Git");
                 return leftTabs;
 
             }
@@ -656,6 +632,9 @@ class Nukepad extends JFrame implements ActionListener {
                     File file = new File(jSave.getSelectedFile().getAbsolutePath());
                     try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, false))) {
                         writer.write(text.getText());
+                        
+                         pluginManager.notifyFileSave(file);
+                         
                     } catch (Exception evt) {
                         JOptionPane.showMessageDialog(frame, evt.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                     }
@@ -803,6 +782,7 @@ class Nukepad extends JFrame implements ActionListener {
                     case "c":
                         pbR = new ProcessBuilder(currentFile.getPath().replace("." + ext2, ""));
                         break;
+                    
                     default:
                         terminalArea.append("ERROR: Run not supported for '." + ext2 + "' files.\n");
                         return;
@@ -880,7 +860,10 @@ class Nukepad extends JFrame implements ActionListener {
         editor.setAntiAliasingEnabled(true);
         applyEditorTheme(editor);
         installLiveErrorParser(editor);
+        
+        
         String name = file.getName().toLowerCase();
+        String ext = name.contains(".") ? name.substring(name.lastIndexOf('.') + 1) : "";
         switch (name.substring(name.lastIndexOf('.') + 1)) {
             case "java":
                 editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
@@ -928,10 +911,17 @@ class Nukepad extends JFrame implements ActionListener {
             case "php":
                 editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_PHP);
                 break;
+            case "rs":
+                editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_RUST);
+                break;
             default:
                 editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_NONE);
                 break;
         }
+        
+        ImportValidator importValidator = new ImportValidator(editor);
+        importValidator.setExt(ext); 
+        editor.addParser(importValidator);
         editor.setText(content);
         CombinedProvider tabProvider = new CombinedProvider(editor);
         tabProvider.setProjectWords(sharedProvider != null
@@ -962,6 +952,8 @@ class Nukepad extends JFrame implements ActionListener {
 
         setupDragAndDrop(scroll);
         setupDragAndDrop(editor);
+        
+        pluginManager.notifyFileOpen(file);
     }
 
     private void makeTabClosable(JTabbedPane tabs, Component tab, String title, String fullPath) {
@@ -1216,7 +1208,7 @@ class Nukepad extends JFrame implements ActionListener {
         section.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
         section.setPreferredSize(new Dimension(0, 180));
 
-        // --- Build tree model from the file list ---
+        
         DefaultMutableTreeNode root = new DefaultMutableTreeNode("root");
         for (File f : files) {
             DefaultMutableTreeNode node = new DefaultMutableTreeNode(f);
@@ -1230,7 +1222,7 @@ class Nukepad extends JFrame implements ActionListener {
         tree.setShowsRootHandles(true);
         tree.setCellRenderer(new FileTreeCellRenderer());
 
-        // Lazy folder expansion (same pattern as openedProjectsTree)
+        
         tree.addTreeExpansionListener(new javax.swing.event.TreeExpansionListener() {
             @Override
             public void treeExpanded(javax.swing.event.TreeExpansionEvent event) {
@@ -1263,7 +1255,7 @@ class Nukepad extends JFrame implements ActionListener {
             }
         });
 
-        // Double-click to open a file
+        
         tree.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -1287,7 +1279,7 @@ class Nukepad extends JFrame implements ActionListener {
             }
         });
 
-        // Right-click popup
+        
         JPopupMenu popup = new JPopupMenu();
         JMenuItem addFile = new JMenuItem("Add file...");
         JMenuItem addFolder = new JMenuItem("Add folder...");
@@ -1671,6 +1663,7 @@ class Nukepad extends JFrame implements ActionListener {
 
     private void rebuildLayout() {
         frame.getContentPane().removeAll();
+        frame.add(activityBar, BorderLayout.WEST);
         verticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
                 tabs, buildBottomPanelWrapper());
         verticalSplit.setResizeWeight(0.75);
@@ -1747,9 +1740,15 @@ class Nukepad extends JFrame implements ActionListener {
         editor.setAntiAliasingEnabled(true);
         applyEditorTheme(editor);
         installLiveErrorParser(editor);
+              
 
         String name = file.getName().toLowerCase();
         String ext = name.contains(".") ? name.substring(name.lastIndexOf('.') + 1) : "";
+        
+        ImportValidator importValidator = new ImportValidator(editor);
+        importValidator.setExt(ext); 
+        editor.addParser(importValidator);
+        
         switch (ext) {
             case "java":
                 editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
@@ -1891,6 +1890,22 @@ class Nukepad extends JFrame implements ActionListener {
         bottomPanelCache.add(buildBottomPanel());
         return bottomPanelCache;
     }
+    
+    private ImageIcon loadAndScaleIcon(String iconPath, int size) {
+    try {
+        ImageIcon icon = new ImageIcon(getClass().getResource(iconPath));
+        if (icon.getImage() != null) {
+            return new ImageIcon(icon.getImage().getScaledInstance(size, size, java.awt.Image.SCALE_SMOOTH));
+        }
+    } catch (Exception e) {
+        System.err.println("Failed to load icon: " + iconPath);
+    }
+    return null;
+}
+    
+    private ImageIcon scaleIcon(ImageIcon icon, int size) {
+    return new ImageIcon(icon.getImage().getScaledInstance(size, size, java.awt.Image.SCALE_SMOOTH));
+}
 
     private void mergeRightTabsIntoLeft() {
         if (rightTabs == null)
@@ -1917,3 +1932,29 @@ class Nukepad extends JFrame implements ActionListener {
     }// jasmine
 
 }// jerry
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

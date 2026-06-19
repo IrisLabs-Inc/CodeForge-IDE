@@ -23,7 +23,19 @@
             <artifactId>flatlaf</artifactId>
             <version>3.7.1</version>
         </dependency>
+        
+        <dependency>
+            <groupId>com.formdev</groupId>
+            <artifactId>flatlaf-extras</artifactId>
+            <version>3.7.1</version>
+        </dependency>
+        
         <!-- Source: https://mvnrepository.com/artifact/com.fifesoft/rsyntaxtextarea -->
+        <dependency>
+    <groupId>org.apache.xmlgraphics</groupId>
+    <artifactId>batik-transcoder</artifactId>
+    <version>1.17</version>
+    </dependency>
     <dependency>
     <groupId>com.fifesoft</groupId>
     <artifactId>rsyntaxtextarea</artifactId>
@@ -35,6 +47,28 @@
         <artifactId>autocomplete</artifactId>
         <version>3.3.3</version>
     </dependency>
+    
+    <!-- Batik Transcoder: Core SVG-to-image rendering -->  
+    <dependency>  
+        <groupId>org.apache.xmlgraphics</groupId>  
+        <artifactId>batik-transcoder</artifactId>  
+        <version>1.17</version> <!-- Use the latest version -->  
+    </dependency>  
+ 
+    <!-- Batik SVG DOM: For parsing SVG files -->  
+    <dependency>  
+        <groupId>org.apache.xmlgraphics</groupId>  
+        <artifactId>batik-svg-dom</artifactId>  
+        <version>1.17</version>  
+    </dependency>  
+ 
+    <!-- Batik Utilities: Helper classes for IO, etc. -->  
+    <dependency>  
+        <groupId>org.apache.xmlgraphics</groupId>  
+        <artifactId>batik-util</artifactId>  
+        <version>1.17</version>  
+    </dependency>  
+    
     </dependencies>
     <build>
       <finalName>Nukepad</finalName> <plugins>

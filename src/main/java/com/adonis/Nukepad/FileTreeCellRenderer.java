@@ -1,44 +1,29 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package com.adonis.Nukepad;
 
-import java.awt.Component;
+import javax.swing.*;
+import javax.swing.tree.*;
+import java.awt.*;
 import java.io.File;
-import javax.swing.Icon;
-import javax.swing.JTree;
-import javax.swing.UIManager;
-import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeCellRenderer;
 
-/**
- *
- * @author croco
- */
-public class FileTreeCellRenderer extends DefaultTreeCellRenderer {
+class FileTreeCellRenderer extends DefaultTreeCellRenderer {
 
-    private Icon folderIcon = UIManager.getIcon("FileView.directoryIcon");
-    private Icon fileIcon = UIManager.getIcon("FileView.fileIcon");
-    
     @Override
-    public Component getTreeCellRendererComponent(
-            JTree tree, Object value, boolean sel,
-            boolean expanded, boolean leaf, int row, boolean hasFocus) {
+public Component getTreeCellRendererComponent(
+        JTree tree, Object value, boolean selected,
+        boolean expanded, boolean leaf, int row, boolean hasFocus) {
 
-        super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+    super.getTreeCellRendererComponent(
+            tree, value, selected, expanded, leaf, row, hasFocus);
 
-        DefaultMutableTreeNode node = (DefaultMutableTreeNode) value;
+    if (value instanceof DefaultMutableTreeNode node) {
         Object userObj = node.getUserObject();
-
-        if (!(userObj instanceof File)) {
-            setText(userObj.toString());
-            setIcon(null);
-            return this;
+        if (userObj instanceof File file) {
+            setText(file.getName());
+            setIcon(MaterialIconLoader.forFile(file, expanded)); // ← changed
+        } else if (userObj instanceof String s && !s.equals("Loading...")) {
+            setIcon(MaterialIconLoader.getIcon("folder"));       // ← changed
         }
-        File file = (File) userObj;
-        setText(file.getName());
-        setIcon(file.isDirectory() ? folderIcon : fileIcon);
-        return this;
     }
+    return this;
+}
 }

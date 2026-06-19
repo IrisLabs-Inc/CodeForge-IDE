@@ -67,4 +67,15 @@ public class CombinedProvider extends DefaultCompletionProvider {
         return Collections.unmodifiableSet(projectWords);
     }
     
+    private void addImportCompletions(String ext, String typed, List<Completion> completions) {
+        String prefix = typed.replaceAll("^(import|from|use|using|#include[<\"]?)\\s*", "").trim();
+        if (prefix.length() < 2) return;
+        
+        for(String pkg : PackageRegistry.getKnown(ext)) {
+            if (pkg.startsWith(prefix)) {
+                completions.add(new org.fife.ui.autocomplete.BasicCompletion(this, pkg));
+            }
+        }
+    }
+    
 }
