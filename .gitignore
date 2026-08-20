@@ -3,4 +3,7 @@
 dependency-reduced-pom.xml
 /src/test
 launch4jconf.xml
+.gitlab-ci.yml
+.robotics-features-todo.txt
+.to be done.txt
 

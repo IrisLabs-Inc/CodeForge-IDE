@@ -67,7 +67,14 @@
         <groupId>org.apache.xmlgraphics</groupId>  
         <artifactId>batik-util</artifactId>  
         <version>1.17</version>  
-    </dependency>  
+    </dependency>
+
+    <!-- jSerialComm: Pure Java serial port communication -->
+    <dependency>
+        <groupId>com.fazecast</groupId>
+        <artifactId>jSerialComm</artifactId>
+        <version>2.10.4</version>
+    </dependency>
     
     </dependencies>
     <build>

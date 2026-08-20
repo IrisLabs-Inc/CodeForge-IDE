@@ -187,4 +187,18 @@ public class InteractiveTerminal extends JPanel {
         input.setForeground(fg);
         input.getParent().setBackground(inputBg);
     }
+
+    public void setFontSize(int size) {
+        Font displayFont = new Font("Monospaced", Font.PLAIN, size);
+        Font promptFont = new Font("Monospaced", Font.BOLD, size);
+        display.setFont(displayFont);
+        input.setFont(displayFont);
+        // Find the prompt label in the input row
+        java.awt.Component[] comps = ((JPanel) input.getParent()).getComponents();
+        for (java.awt.Component c : comps) {
+            if (c instanceof JLabel) {
+                c.setFont(promptFont);
+            }
+        }
+    }
 }

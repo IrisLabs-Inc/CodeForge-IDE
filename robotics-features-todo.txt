@@ -1,0 +1,223 @@
+CodeForge-IDE — Robotics Programming Features TODO
+===================================================
+
+STRATEGIC CALL
+--------------
+Most robotics platforms (FTC, FRC, VEX, ROS) use either Java or Python.
+Build shared infrastructure first, then add platform-specific features as
+plugins — same pattern as the Android/ESP/Arduino plugin architecture.
+
+
+PHASE 1 — Core Robotics Infrastructure (do first)
+---------------------------------------------------
+These benefit ALL robotics platforms, not just FTC.
+
+1. Project-type detection (extend existing ProjectTypeDetector)
+   - FTC: scan for ftc_robot_controller/ directory, build.gradle with
+     com.qualcomm.ftcrobotcontroller dependency, @OpMode annotations
+   - FRC (FIRST Robotics Competition): scan for WPILib references,
+     build.gradle with edu.wpi.first plugin, robotContainer.java
+   - VEX V5: scan for vex/ directory, PROS or VEXcode project markers
+   - ROS2: scan for package.xml, CMakeLists.txt + ament_cmake,
+     setup.py with ament_python, colcon workspace markers
+   - MicroPython/Arduino: extend existing .ino detection
+
+2. Robot SDK API Reference Panel (sidebar tab)
+   - Searchable, categorized list of common robotics classes/methods
+   - FTC: DcMotor, DcMotorEx, Servo, IMU, DistanceSensor, TouchSensor,
+     ColorRangeSensor, WebcamName, BNO055IMU, LinearOpMode, OpMode,
+     telemetry, hardwareMap, Gamepad,.ElapsedTime
+   - FRC: Commands, Subsystems, TimedRobot, Commands2, PIDController,
+     TalonFX, SparkMax, Pneumatics, Vision
+   - Auto-detect which SDK is in use and show relevant reference
+   - Link to online Javadocs where available
+
+3. Hardware Device Autocomplete
+   - After hardwareMap.get() or hardwareMap.<device>.get(), suggest
+     device type names from the robot's configuration file
+   - Parse FTC robot configuration XML/JSON for device names
+   - Parse FRC vendordeps for available device types
+   - Show device type + port number in autocomplete tooltip
+
+4. Telemetry / Console Output Panel
+   - Dedicated bottom tab for robot telemetry output
+   - Parse FTC telemetry.add() calls and display in structured format
+   - Parse FRC SmartDashboard/Shuffleboard.put() calls
+   - Support for graphs (numeric telemetry over time)
+   - Log level filtering (telemetry vs. debug vs. warning vs. error)
+
+
+PHASE 2 — FTC-Specific Features
+---------------------------------
+5. FTC OpMode Templates (New File menu)
+   - LinearOpMode template (synchronous, most common)
+   - Iterative OpMode template (init/init_loop/start/loop/stop)
+   - Sensor-only OpMode (telemetry output without motor control)
+   - Autonomous template with path following
+   - TeleOp template with gamepad1 + gamepad2 split control
+   - Python OpMode template (for robot_controller Python)
+   - Each template includes: @TeleOp/@Autonomous annotation, hardware
+     map, runOpMode() with comments explaining each section
+
+6. FTC Hardware Configuration Editor
+   - Visual editor for robot_config.json / robot_config.xml
+   - Drag-and-drop port assignment
+   - Device type dropdown (DcMotor, Servo, TouchSensor, etc.)
+   - Port number grid showing used/available ports
+   - Validates against Control Hub port limits (Control Hub:
+     I2C 0-3, Digital 0-7, Analog 0-3, PWM 0-3, Expansion Hub adds more)
+   - Import/export configuration files
+   - Generate Java constant definitions from configuration
+
+7. FTC Dashboard Integration
+   - Built-in panel embedding FTC Dashboard web UI (via JFXBrowser
+     or embedded web engine)
+   - Live telemetry visualization (graphs, gauges, camera feed)
+   - Inline command editor for running commands from the IDE
+   - Configuration editor (robot config via Dashboard)
+   - URL configurable in settings (default: http://192.168.43.1:8080)
+
+8. FTC Build & Deploy
+   - One-click build: gradlew assembleDebug
+   - One-click deploy: adb install app-debug.apk to Control Hub
+   - Device selector dropdown (reuse DeviceManagerPanel ADB list)
+   - Build status indicator in status bar
+   - Deploy progress with error reporting
+   - "Run on Hub" button that builds + deploys + starts app
+
+9. FTC Logcat Panel
+   - Stream adb logcat in a dedicated bottom tab
+   - Filter by FTC tags: RobotCore, FtcRobotController, RobotLog
+   - Search/filter by text
+   - Export logs to file
+   - Auto-reconnect when Hub disconnects/reconnects
+
+
+PHASE 3 — FRC-Specific Features
+---------------------------------
+10. FRC Project Templates
+    - TimedRobot template (legacy, still used by beginners)
+    - Commands-based Robot template (RobotContainer, subsystems)
+    - Constants file template (motor IDs, PID values, etc.)
+    - Vendor dependency template (Phoenix, REV, CTRE)
+
+11. FRC Build & Deploy
+    - GradleRIO build wrapper (./gradlew build)
+    - Deploy to RoboRIO via FTP/team number
+    - Driver Station integration hints
+
+12. FRC Shuffleboard/SmartDashboard Panel
+    - Live visualization of SmartDashboard values
+    - Camera stream viewer (if roboRIO has USB camera)
+
+
+PHASE 4 — Universal Robotics Tools
+-------------------------------------
+13. Motor/Servo Configuration Helper
+    - Visual PID tuning panel (set P/I/D, see response graph)
+    - Motor direction/speed/test controls
+    - Servo position calibration (0.0 - 1.0 slider)
+    - Unit conversion helpers (encoder ticks ↔ degrees ↔ radians ↔ inches)
+
+14. Path Planning Integration
+    - Support for common path planners:
+      - FTC: Road Runner, Ped Path, Time Laboratory
+      - FRC: PathWeaver, Choreo
+    - Visual trajectory preview (render path in a Swing canvas)
+    - Generate OpMode code from planned path
+    - Bezier/spline curve editor
+
+15. Sensor Simulator
+    - Mock hardwareMap for local testing
+    - Simulate encoder values, gyro readings, distance sensors
+    - Virtual gamepad input (keyboard → gamepad mapping overlay)
+    - Run OpMode locally without hardware for logic testing
+
+16. Code Snippets & Quick Actions
+    - Ctrl+Shift+Space snippet menu with robotics-specific snippets:
+      - Motor init:   hardwareMap.get(DcMotor.class, "name")
+      - Servo init:   hardwareMap.get(Servo.class, "name")
+      - Encoder read: motor.getCurrentPosition()
+      - PID set:      pidController.setPID(p, i, d)
+      - Telemetry:    telemetry.addData("label", value)
+      - Gamepad:      gamepad1.left_stick_x
+    - Configurable via a snippets config file (~/.nukepad_snippets.txt)
+
+17. Gamepad Visualizer
+    - Real-time display of gamepad state (buttons, sticks, triggers)
+    - Keyboard-to-gamepad mapping for testing without a controller
+    - Record/replay sequences for autonomous testing
+    - Overlay on screen during OpMode debugging
+
+18. Autonomous Timer/Trajectory Debugger
+    - Step-through debugger for autonomous OpModes
+    - Timeline view showing actions at specific time offsets
+    - "Simulate" button that runs the OpMode logic with a virtual clock
+    - Highlights current execution point in the code
+
+
+PHASE 5 — Cross-Platform & Quality of Life
+--------------------------------------------
+19. Robot-Project Workspace Layout
+    - Auto-detect robot project structure and suggest layout:
+      - FTC: TeamCode/src/main/java/... (user code)
+      - FRC: src/main/java/... (user code)
+    - Pin important directories (TeamCode, sensors/, subsystems/)
+    - "Robot" sidebar section showing project structure
+
+20. Competition Mode
+    - Distraction-free mode for competition: hide non-essential panels
+    - Quick-deploy shortcut (single button to build + deploy)
+    - Last-known-good backup (save working version before competition)
+    - Offline mode indicator (no internet for SDK downloads)
+
+21. Version Control Integration for Robot Code
+    - Pre-commit hook templates for FTC (check for common mistakes)
+    - Branch naming suggestions (teleop/, auto/, testing/)
+    - Diff viewer tuned for robot code (highlight motor/servo changes)
+
+22. Documentation Generator
+    - Generate Javadoc from OpMode annotations
+    - Auto-create README.md for robot projects
+    - Hardware configuration documentation export
+
+23. Multi-Robot Manager
+    - Work on multiple robot projects simultaneously
+    - Switch between robot configurations ( Competition Bot vs. Practice Bot)
+    - Separate settings per robot (different motor IDs, different Hub IPs)
+
+24. Testing Framework
+    - JUnit scaffold for testing subsystems in isolation
+    - Mock hardwareMap generator for unit tests
+    - Integration test runner that deploys + runs tests on Hub
+    - Test result visualization in Problems panel
+
+25. Plugin System Extensions
+    - Allow third-party robotics plugins:
+      - FTC Blocks-to-Java converter plugin
+      - REV Extension Hub auto-detection plugin
+      - GoBilda Odometry Pod calibration plugin
+      - PhotonVision / AprilTag integration plugin
+      - Road Runner auto-tune plugin
+
+
+BUILD ORDER (SUGGESTED)
+-----------------------
+1.  OpMode templates (#5) — cheapest full loop, immediate value
+2.  FTC Dashboard panel (#7) — big UX win for debugging
+3.  FTC Build & Deploy (#8) — automates the hardest part
+4.  FTC Logcat panel (#9) — essential for debugging on Hub
+5.  Robot SDK API Reference (#2) — helps all platforms
+6.  Hardware config editor (#6) — reduces config errors
+7.  Gamepad visualizer (#17) — great for debugging teleop
+8.  Sensor simulator (#15) — enables testing without hardware
+9.  Path planning (#14) — advanced but high value
+10. FRC features (#10-12) — if there's FRC demand
+11. Everything else
+
+
+LICENSING NOTE
+--------------
+FTC SDK is Apache 2.0 licensed. WPILib is BSD 3-Clause.
+Any FTC/FRC-specific plugins must respect these licenses.
+The core IDE is GPL-3.0 (inherited from Nukepad).

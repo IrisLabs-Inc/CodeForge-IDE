@@ -1,0 +1,45 @@
+What you're building on: Nukepad is a Java Swing desktop editor (Maven, JDK 11+) built on the TEDitor base, with RSyntaxTextArea for editing, a FileTree/Categories/Search sidebar, a Git panel wrapping the git CLI, an interactive terminal, a Problems panel fed by compiler output, and — as of v1.0 beta — a plugin manager scripted in Java. It already has a Compile/Run dispatch that branches by file type (javac/g++/gcc for compile, java/python3/node for run). That dispatch pattern and the plugin manager are your two best extension points — you don't want to hand-roll Android/ESP/Arduino toolchains, you want to wrap the real ones (arduino-cli, ESP-IDF, Android SDK/Gradle) the same way the Git panel wraps git.
+
+Strategic call: plugins, not core forks
+
+Given v1.0 already ships a plugin system, build Android/ESP/Arduino support as three separate plugins rather than hard-forking core classes. That keeps upstream merges possible, lets users install only what they need, and matches the project's own direction.
+
+Phase 0 — Shared infrastructure (do this first, all three depend on it)
+Project-type detection: scan the opened root folder for markers — .ino file → Arduino/ESP-Arduino; CMakeLists.txt + idf_component.yml → ESP-IDF; build.gradle/build.gradle.kts + AndroidManifest.xml → Android. Surface this as a badge next to the project in the Opened Projects panel.
+Toolchain settings panel: paths to arduino-cli binary, ESP-IDF install (IDF_PATH), Android SDK root, JDK for Gradle. Store like ThemeManager does — a config file in the user's home dir.
+Device/Port manager panel: one unified panel listing serial ports (for Arduino/ESP) and ADB devices (for Android), refreshed on demand. This is your single biggest UX win — it's the thing all three domains need and none of them have yet.
+Serial library: pull in jSerialComm via Maven (pure Java, no native build step — fits your existing pom.xml-driven dependency model far better than RXTX). This powers both flashing progress and the Serial Monitor.
+Extend the Run/Compile dispatcher: add cases that hand off to a new BuildRunner interface, implemented per plugin (ArduinoCliRunner, EspIdfRunner, GradleRunner), same shape as the existing Git Runner.
+Extend the Problems panel to parse output from these new toolchains, not just javac/gcc.
+Phase 1 — Arduino support
+Wrap arduino-cli: core install, lib install, compile, upload, board list.
+New sketch template (.ino boilerplate with setup()/loop()), reusing the "New File Templates" mechanism already in Nukepad.
+Board + port dropdowns in the toolbar, sourced from arduino-cli board list and your new port manager.
+Serial Monitor as a new tabbed panel (same family as Terminal/Problems), built on jSerialComm.
+Library manager UI as a thin wrapper around arduino-cli lib search/install.
+Phase 2 — ESP32 / ESP8266 support
+
+Two viable paths — I'd support both, since the ecosystem is split:
+
+Arduino-framework route (lower effort, reuses Phase 1 almost entirely): install the ESP32/ESP8266 board package via arduino-cli core install esp32:esp32, then everything from Phase 1 just works with ESP boards added to the dropdown.
+ESP-IDF route (for people writing native ESP-IDF/CMake projects): wrap idf.py build, idf.py -p <port> flash, idf.py monitor. This needs its own project template (CMakeLists.txt + main/ skeleton) and its own Problems-panel parser since IDF's CMake/ninja errors look nothing like arduino-cli's.
+Either path, integrate esptool.py directly for flash erase/read and partition table inspection — useful even for the Arduino route when things go wrong.
+Phase 3 — Android support
+
+
+
+This is the heaviest lift since it's not just a CLI wrapper, it's a build system:
+
+Wrap the Gradle wrapper (gradlew assembleDebug, gradlew installDebug) rather than Gradle itself, so version-per-project just works.
+ADB integration: adb devices feeding the Device Manager panel, adb install app-debug.apk, and a Logcat panel (another Terminal-family tab, streaming adb logcat).
+Emulator support via avdmanager list avd and emulator -avd <name>, launched as a background process like your existing Shell Process.
+New Android project template is the hardest part — either bundle a minimal hand-written skeleton (manifest + single Activity + Gradle files) or shell out to Android's own project templating if you want Jetpack Compose support later. Start minimal.
+Skip a live XML layout preview initially — it's a large rabbit hole (needs a layout renderer) and isn't essential to get building/running/debugging working.
+Suggested build order
+Phase 0 (device manager + settings panel — nothing else works without it)
+Arduino (cheapest full loop: compile → upload → serial monitor)
+ESP32 via the Arduino path (near-free once Arduino works)
+Android (biggest scope — do it last so the plugin architecture is already proven)
+ESP-IDF native path (nice-to-have, lower priority than the above)
+
+A few things worth flagging as you go: Nukepad is GPL-3.0, which sets the license for your fork's plugins too if they're not cleanly separated processes; and all three toolchains (arduino-cli, ESP-IDF, Android SDK) have real path/version differences across Windows/Mac/Linux, so the settings panel and clear error messages when a tool isn't found will save you the most support pain.
