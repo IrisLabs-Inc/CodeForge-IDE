@@ -313,6 +313,48 @@ public class ActivityBar extends JPanel {
         g.fillRoundRect(x+s+2, y+s/2-2, 5, 5, 2, 2);
     }
     };
+    
+    static final IconPainter PAINT_ANDROID = (g,x,y,s,on) -> {
+        try {
+            var url = ActivityBar.class.getResource("/icons/android.svg");
+            if (url != null) {
+                var svg = new com.formdev.flatlaf.extras.FlatSVGIcon("icons/android.svg", s, s);
+                svg.paintIcon(null, g, x, y);
+                return;
+            }
+        } catch (Exception ignored) {}
+        g.setColor(ic(on));
+        g.fillOval(x+3, y+2, s-6, s-6);
+        g.fillRect(x+4, y+s/2, s-8, s/2-2);
+    };
+
+    static final IconPainter PAINT_CONSOLE = (g,x,y,s,on) -> {
+        try {
+            var url = ActivityBar.class.getResource("/icons/console.svg");
+            if (url != null) {
+                var svg = new com.formdev.flatlaf.extras.FlatSVGIcon("icons/console.svg", s, s);
+                svg.paintIcon(null, g, x, y);
+                return;
+            }
+        } catch (Exception ignored) {}
+        g.setColor(ic(on)); stroke(g, on);
+        g.drawRoundRect(x+2, y+2, s-4, s-4, 3, 3);
+        g.drawString("> _", x+5, y+s/2+3);
+    };
+
+    static final IconPainter PAINT_HAMMER = (g,x,y,s,on) -> {
+        try {
+            var url = ActivityBar.class.getResource("/icons/hammer.svg");
+            if (url != null) {
+                var svg = new com.formdev.flatlaf.extras.FlatSVGIcon("icons/hammer.svg", s, s);
+                svg.paintIcon(null, g, x, y);
+                return;
+            }
+        } catch (Exception ignored) {}
+        g.setColor(ic(on)); stroke(g, on);
+        g.fillRect(x+s/2-1, y+3, 2, s-6);
+        g.fillRect(x+3, y+3, s-6, 3);
+    };
 
     // ── fields ────────────────────────────────────────────────────────────
     private final List<IconBtn> topBtns    = new ArrayList<>();

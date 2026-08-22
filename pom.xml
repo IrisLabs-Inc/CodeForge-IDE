@@ -29,6 +29,12 @@
             <artifactId>flatlaf-extras</artifactId>
             <version>3.7.1</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.formdev</groupId>
+            <artifactId>flatlaf-intellij-themes</artifactId>
+            <version>3.7.1</version>
+        </dependency>
         
         <!-- Source: https://mvnrepository.com/artifact/com.fifesoft/rsyntaxtextarea -->
         <dependency>
@@ -75,6 +81,13 @@
         <artifactId>jSerialComm</artifactId>
         <version>2.10.4</version>
     </dependency>
+
+    <!-- LSP4J: Language Server Protocol implementation -->
+    <dependency>
+        <groupId>org.eclipse.lsp4j</groupId>
+        <artifactId>org.eclipse.lsp4j</artifactId>
+        <version>0.24.0</version>
+    </dependency>
     
     </dependencies>
     <build>
@@ -90,6 +103,16 @@
                         <goal>shade</goal>
                     </goals>
                     <configuration>
+                        <filters>
+                            <filter>
+                                <artifact>*:*</artifact>
+                                <excludes>
+                                    <exclude>META-INF/*.SF</exclude>
+                                    <exclude>META-INF/*.DSA</exclude>
+                                    <exclude>META-INF/*.RSA</exclude>
+                                </excludes>
+                            </filter>
+                        </filters>
                         <transformers>
                             <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                 <mainClass>com.adonis.Nukepad.Nukepad</mainClass>
@@ -113,7 +136,7 @@
                 <outfile>target/Nukepad.exe</outfile>
                 <jar>target/Nukepad.jar</jar> <errTitle>Nukepad</errTitle>
                 <classPath>
-                    <mainClass>com.adonis.Main</mainClass> </classPath>
+                    <mainClass>com.adonis.Nukepad.Nukepad</mainClass> </classPath>
                 <jre>
                     <minVersion>17</minVersion>
                 </jre>

@@ -34,7 +34,7 @@ public class IDESettings {
 
     private void registerDefaults() {
         // Editor
-        defaults.put("editor.font.family", "Monospaced");
+        defaults.put("editor.font.family", "JetBrains Mono, Consolas, Monospaced");
         defaults.put("editor.font.size", "14");
         defaults.put("editor.tab.size", "4");
         defaults.put("editor.line.wrap", "false");

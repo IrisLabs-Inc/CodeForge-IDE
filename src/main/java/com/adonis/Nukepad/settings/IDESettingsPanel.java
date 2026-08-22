@@ -1,5 +1,6 @@
 package com.adonis.Nukepad.settings;
 
+import com.adonis.Nukepad.ThemeManager;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -207,7 +208,18 @@ public class IDESettingsPanel extends JDialog {
         gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
         panel.add(createLabel("Theme:", labelFont), gbc);
         gbc.gridx = 1; gbc.weightx = 1.0;
-        themeCombo = new JComboBox<>(new String[]{"dark", "light"});
+        themeCombo = new JComboBox<>(ThemeManager.THEMES.keySet().toArray(new String[0]));
+        themeCombo.setRenderer(new javax.swing.DefaultListCellRenderer() {
+            @Override
+            public java.awt.Component getListCellRendererComponent(javax.swing.JList<?> list, Object value, int index, boolean sel, boolean focus) {
+                super.getListCellRendererComponent(list, value, index, sel, focus);
+                if (value instanceof String key) {
+                    ThemeManager.ThemeInfo info = ThemeManager.THEMES.get(key);
+                    setText(info != null ? info.displayName : key);
+                }
+                return this;
+            }
+        });
         themeCombo.setSelectedItem(settings.get("appearance.theme"));
         panel.add(themeCombo, gbc);
 

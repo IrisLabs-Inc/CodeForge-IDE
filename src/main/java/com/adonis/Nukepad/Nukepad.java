@@ -7,33 +7,79 @@ package com.adonis.Nukepad;
 import com.adonis.Nukepad.plugins.PluginContext;
 import com.adonis.Nukepad.plugins.PluginManager;
 import com.adonis.Nukepad.plugins.PluginsDialog;
+import com.adonis.Nukepad.lsp.*;
 import com.adonis.Nukepad.toolchain.BuildRunner;
 import com.adonis.Nukepad.toolchain.DeviceManagerPanel;
+import com.adonis.Nukepad.toolchain.BuildOrchestrator;
 import com.adonis.Nukepad.toolchain.ProblemsManager;
 import com.adonis.Nukepad.toolchain.ProjectTypeDetector;
 import com.adonis.Nukepad.toolchain.ToolchainSettings;
 import com.adonis.Nukepad.toolchain.ToolchainSettingsPanel;
 import com.adonis.Nukepad.settings.IDESettings;
 import com.adonis.Nukepad.settings.IDESettingsPanel;
+import com.adonis.Nukepad.ui.FileTreeManager;
 import com.adonis.Nukepad.arduino.ArduinoCliRunner;
 import com.adonis.Nukepad.arduino.SerialMonitorPanel;
 import com.adonis.Nukepad.arduino.LibraryManagerPanel;
 import com.adonis.Nukepad.arduino.BoardManagerPanel;
+import com.adonis.Nukepad.android.AndroidBuildRunner;
+import com.adonis.Nukepad.android.LogcatPanel;
+import com.adonis.Nukepad.android.DeviceFileExplorerPanel;
+import com.adonis.Nukepad.android.GradleSyncPanel;
+import com.adonis.Nukepad.android.ApkAnalyzerPanel;
+import com.adonis.Nukepad.android.SigningConfigPanel;
+import com.adonis.Nukepad.android.BuildVariantsPanel;
+import com.adonis.Nukepad.android.SdkManagerPanel;
+import com.adonis.Nukepad.espidf.EspIdfBuildRunner;
+import com.adonis.Nukepad.espidf.EspIdfProjectTemplate;
+import com.adonis.Nukepad.robotics.FtcBuildRunner;
+import com.adonis.Nukepad.robotics.FrcBuildRunner;
+import com.adonis.Nukepad.robotics.FtcOpModeTemplates;
+import com.adonis.Nukepad.robotics.FrcProjectTemplates;
+import com.adonis.Nukepad.robotics.SdkReferencePanel;
+import com.adonis.Nukepad.robotics.FtcLogcatPanel;
+import com.adonis.Nukepad.robotics.FtcHardwareConfigEditor;
+import com.adonis.Nukepad.robotics.GamepadVisualizerPanel;
+import com.adonis.Nukepad.robotics.MotorServoHelperPanel;
+import com.adonis.Nukepad.robotics.CodeSnippetsPanel;
+import com.adonis.Nukepad.robotics.FtcDashboardPanel;
+import com.adonis.Nukepad.robotics.FrcSmartDashboardPanel;
+import com.adonis.Nukepad.robotics.CompetitionModePanel;
+import com.adonis.Nukepad.robotics.FtcProjectCreator;
+import com.adonis.Nukepad.robotics.FrcProjectCreator;
+import com.adonis.Nukepad.robotics.VexProjectCreator;
+import com.adonis.Nukepad.robotics.RoboticsSdkVersionCache;
+import com.adonis.Nukepad.editor.EditorUndoManager;
+import com.adonis.Nukepad.editor.FindReplaceDialog;
+import com.adonis.Nukepad.workspace.WorkspaceManager;
+import com.adonis.Nukepad.arduino.ArduinoProjectCreator;
+import com.adonis.Nukepad.ui.JetBrainsMenuBuilder;
+import com.adonis.Nukepad.ui.StatusBar;
+import com.adonis.Nukepad.ui.BottomToolWindowBar;
+import com.adonis.Nukepad.ui.ProjectToolWindow;
+import com.adonis.Nukepad.ui.IconManager;
+import com.adonis.Nukepad.ui.animation.AnimationEngine;
+import com.adonis.Nukepad.ui.animation.CursorTrailEffect;
+import com.adonis.Nukepad.ui.animation.SmoothTabTransition;
+import com.adonis.Nukepad.ui.animation.SmoothPanelAnimator;
+import com.adonis.Nukepad.ui.animation.FocusDimmer;
 import java.util.ArrayList;
 import org.fife.ui.rsyntaxtextarea.parser.AbstractParser;
 import org.fife.ui.rsyntaxtextarea.parser.DefaultParseResult;
 import org.fife.ui.rsyntaxtextarea.parser.DefaultParserNotice;
 import org.fife.ui.rsyntaxtextarea.parser.ParseResult;
 import org.fife.ui.rsyntaxtextarea.parser.ParserNotice;
-import com.formdev.flatlaf.FlatIntelliJLaf;
-import com.formdev.flatlaf.FlatDarculaLaf;
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -46,6 +92,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -58,12 +105,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.Box;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
@@ -78,6 +127,7 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
+import javax.swing.ButtonGroup;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
@@ -98,18 +148,29 @@ public class Nukepad extends JFrame implements ActionListener {
                                      // terminal and the editor itself)
     private JSplitPane outerHSplit;// Declares the outer horizontal split pane(left and right, only while the left
                                    // tabs section is moved to the center)
-    private boolean terminalVisible = true; // Just tells the IDE / Computer that the terminal is visible initially
-    private int lastDividerLocation = 500; // Last divider location for the vertical split pane (also initializes it)
+    private boolean terminalVisible = false;
+    private int lastDividerLocation = 500;
+    private int lastSidebarWidth = 280;
     private GitRunner gitRunner; // Runs git
     private GitPanel gitPanel; // The git pannel
     private File activeDirectory; // Active directory, usefull for git
     private ActivityBar activityBar;
     private PluginManager pluginManager;
+    private volatile Process runningProcess;
+
+    private LspClientManager lspManager;
+    private LspDocumentAdapter lspDocAdapter;
+    private LspDiagnosticsParser lspDiagnosticsParser;
+    private LspCompletionProvider lspCompletionProvider;
+    private LspHoverListener lspHoverListener;
+    private LspGoToDefinitionHandler lspGoToHandler;
 
     private ToolchainSettings toolchainSettings;
     private IDESettings idesettings;
     private ProblemsManager problemsManager;
     private final List<BuildRunner> buildRunners = new ArrayList<>();
+    private final BuildOrchestrator buildOrchestrator = new BuildOrchestrator();
+    private FileTreeManager fileTreeManager;
     private DeviceManagerPanel deviceManagerPanel;
 
     private final File CATEGORIES_CONFIG_FILE = new File(System.getProperty("user.home"), ".nukepad_categories.cfg");
@@ -129,6 +190,16 @@ public class Nukepad extends JFrame implements ActionListener {
     private JTabbedPane rightTabs;
     private JTabbedPane leftTabsPanel;
     private JPanel bottomPanelCache;
+    private StatusBar statusBar;
+    private BottomToolWindowBar bottomToolWindowBar;
+    private ProjectToolWindow projectToolWindow;
+    private CursorTrailEffect cursorTrail;
+    private SmoothTabTransition tabTransition;
+    private SmoothPanelAnimator sidebarAnimator;
+    private FocusDimmer focusDimmer;
+    private JPanel topSection;
+    private final WorkspaceManager workspaceManager = new WorkspaceManager();
+    private FindReplaceDialog findReplaceDialog;
 
     public static Nukepad getInstance() {
         return instance;
@@ -149,10 +220,19 @@ public class Nukepad extends JFrame implements ActionListener {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        frame = new JFrame("Editor");
+        frame = new JFrame("CodeForge IDE");
         ImageIcon icon = new ImageIcon(getClass().getResource("/icons/nukepadlogo.png"));
         frame.setIconImage(icon.getImage());
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                workspaceManager.saveWorkspace(tabs);
+                workspaceManager.stopAutoSave();
+                lspManager.shutdownAll();
+            }
+        });
+        frame.setLayout(new BorderLayout());
 
         tabs = new JTabbedPane();
         tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
@@ -169,22 +249,50 @@ public class Nukepad extends JFrame implements ActionListener {
         applyEditorTheme(text);
         applySettingsToEditor(text);
         installLiveErrorParser(text);
+
+        lspManager = new LspClientManager();
+        lspDocAdapter = new LspDocumentAdapter(text, lspManager);
+        lspCompletionProvider = new LspCompletionProvider(text, lspManager);
+        lspHoverListener = new LspHoverListener(text, lspManager);
+        lspGoToHandler = new LspGoToDefinitionHandler(text, lspManager, null);
         RTextScrollPane scroll = new RTextScrollPane(text);
         scroll.setRowHeaderView(new LineNumberPanel(text));
         tabs.addTab("Untitled", scroll);
         
-        PluginManager pluginManager = new PluginManager(
+        pluginManager = new PluginManager(
             System.getProperty("user.home") + "/.nukepad_plugins"
         );
         PluginContext pluginContext = new PluginContext(this, text);
         pluginManager.loadPlugins(pluginContext);
         
-        text.addCaretListener(e -> pluginManager.notifyTextChange(text.getText()));
+        text.addCaretListener(e -> {
+            if (statusBar != null) {
+                try {
+                    int pos = Math.min(e.getDot(), text.getDocument().getLength());
+                    int line = text.getLineOfOffset(pos) + 1;
+                    int col = pos - text.getLineStartOffset(text.getLineOfOffset(pos)) + 1;
+                    statusBar.setFileInfo(
+                        currentFile != null ? currentFile.getAbsolutePath() : "",
+                        line, col
+                    );
+                } catch (Exception ignored) {}
+            }
+        });
 
         toolchainSettings = new ToolchainSettings();
         deviceManagerPanel = new DeviceManagerPanel();
         ArduinoCliRunner arduinoRunner = new ArduinoCliRunner();
         registerBuildRunner(arduinoRunner);
+        AndroidBuildRunner androidRunner = new AndroidBuildRunner();
+        registerBuildRunner(androidRunner);
+        EspIdfBuildRunner espIdfRunner = new EspIdfBuildRunner();
+        registerBuildRunner(espIdfRunner);
+        FtcBuildRunner ftcRunner = new FtcBuildRunner();
+        registerBuildRunner(ftcRunner);
+        FrcBuildRunner frcRunner = new FrcBuildRunner();
+        registerBuildRunner(frcRunner);
+
+        RoboticsSdkVersionCache.getInstance().startBackgroundRefresh();
 
         activityBar = new ActivityBar();
 
@@ -195,8 +303,6 @@ public class Nukepad extends JFrame implements ActionListener {
             {"C++ Source","cpp","#include <iostream>\n\nint main() {\n    std::cout << \"Hello World!\" << std::endl;\n    return 0;\n}\n"},
             {"C Source","c","#include <stdio.h>\n\nint main() {\n    printf(\"Hello World!\\n\");\n    return 0;\n}\n"},
             {"Python Script","py","print('Hello World!')\n"},
-            {"JavaScript File","js","console.log('Hello World!');\n"},
-            {"TypeScript File","ts","console.log('Hello World!');\n"},
             {"Arduino Sketch","ino","void setup() {\n    // Initialize here\n}\n\nvoid loop() {\n    // Main loop here\n}\n"},
         };
         for (String[] type : fileTypes2) {
@@ -204,6 +310,121 @@ public class Nukepad extends JFrame implements ActionListener {
             mi.addActionListener(ev -> createNewLanguageFile(type[1], type[2]));
             mNew.add(mi);
         }
+        JMenuItem miNewEspProject = new JMenuItem("ESP-IDF Project...");
+        miNewEspProject.addActionListener(ev -> {
+            String name = JOptionPane.showInputDialog(frame, "Enter project name:");
+            if (name != null && !name.trim().isEmpty()) {
+                File dir = getSelectedDirectory();
+                if (dir == null) dir = new File(System.getProperty("user.home"));
+                try {
+                    File projectDir = EspIdfProjectTemplate.createProject(dir, name.trim());
+                    terminalArea.append("[ESP-IDF] Created project: " + projectDir.getAbsolutePath() + "\n");
+                    addToOpenedProjects(projectDir.getAbsolutePath());
+                    if (fileTree != null) refreshTreeDirectory(fileTree, dir);
+                } catch (Exception ex) {
+                    terminalArea.append("[ESP-IDF] Failed to create project: " + ex.getMessage() + "\n");
+                }
+            }
+        });
+        mNew.addSeparator();
+        mNew.add(miNewEspProject);
+        JMenuItem miNewFtcProject = new JMenuItem("FTC Project...");
+        miNewFtcProject.addActionListener(ev -> {
+            String name = JOptionPane.showInputDialog(frame, "Enter project name:");
+            if (name != null && !name.trim().isEmpty()) {
+                String teamNumber = JOptionPane.showInputDialog(frame, "Enter team number (e.g. 12345):", "12345");
+                File dir = getSelectedDirectory();
+                if (dir == null) dir = new File(System.getProperty("user.home"));
+                try {
+                    File projectDir = FtcProjectCreator.createProject(dir, name.trim(), teamNumber);
+                    terminalArea.append("[FTC] Created project: " + projectDir.getAbsolutePath() + "\n");
+                    addToOpenedProjects(projectDir.getAbsolutePath());
+                    if (fileTree != null) refreshTreeDirectory(fileTree, dir);
+                } catch (Exception ex) {
+                    terminalArea.append("[FTC] Failed to create project: " + ex.getMessage() + "\n");
+                }
+            }
+        });
+        mNew.add(miNewFtcProject);
+        JMenuItem miNewFrcProject = new JMenuItem("FRC Project...");
+        miNewFrcProject.addActionListener(ev -> {
+            String name = JOptionPane.showInputDialog(frame, "Enter project name:");
+            if (name != null && !name.trim().isEmpty()) {
+                String teamNumber = JOptionPane.showInputDialog(frame, "Enter team number (e.g. 1234):", "1234");
+                File dir = getSelectedDirectory();
+                if (dir == null) dir = new File(System.getProperty("user.home"));
+                try {
+                    File projectDir = FrcProjectCreator.createProject(dir, name.trim(), teamNumber);
+                    terminalArea.append("[FRC] Created project: " + projectDir.getAbsolutePath() + "\n");
+                    addToOpenedProjects(projectDir.getAbsolutePath());
+                    if (fileTree != null) refreshTreeDirectory(fileTree, dir);
+                } catch (Exception ex) {
+                    terminalArea.append("[FRC] Failed to create project: " + ex.getMessage() + "\n");
+                }
+            }
+        });
+        mNew.add(miNewFrcProject);
+        JMenuItem miNewVexProject = new JMenuItem("VEX PROS Project...");
+        miNewVexProject.addActionListener(ev -> {
+            String name = JOptionPane.showInputDialog(frame, "Enter project name:");
+            if (name != null && !name.trim().isEmpty()) {
+                File dir = getSelectedDirectory();
+                if (dir == null) dir = new File(System.getProperty("user.home"));
+                try {
+                    File projectDir = VexProjectCreator.createProject(dir, name.trim());
+                    terminalArea.append("[VEX] Created project: " + projectDir.getAbsolutePath() + "\n");
+                    addToOpenedProjects(projectDir.getAbsolutePath());
+                    if (fileTree != null) refreshTreeDirectory(fileTree, dir);
+                } catch (Exception ex) {
+                    terminalArea.append("[VEX] Failed to create project: " + ex.getMessage() + "\n");
+                }
+            }
+        });
+        mNew.add(miNewVexProject);
+        JMenuItem miNewArduinoSketch = new JMenuItem("Arduino Sketch...");
+        miNewArduinoSketch.addActionListener(ev -> {
+            String name = JOptionPane.showInputDialog(frame, "Enter sketch name:");
+            if (name != null && !name.trim().isEmpty()) {
+                String fqbn = JOptionPane.showInputDialog(frame, "Board FQBN:", "arduino:avr:uno");
+                File dir = getSelectedDirectory();
+                if (dir == null) dir = new File(System.getProperty("user.home"));
+                try {
+                    File projectDir = ArduinoProjectCreator.createProject(dir, name.trim(), fqbn);
+                    terminalArea.append("[Arduino] Created sketch: " + projectDir.getAbsolutePath() + "\n");
+                    addToOpenedProjects(projectDir.getAbsolutePath());
+                    if (fileTree != null) refreshTreeDirectory(fileTree, dir);
+                } catch (Exception ex) {
+                    terminalArea.append("[Arduino] Failed to create sketch: " + ex.getMessage() + "\n");
+                }
+            }
+        });
+        mNew.add(miNewArduinoSketch);
+        JMenu mRobotics = new JMenu("Robotics Templates");
+        String[][] roboticsTemplates = {
+            {"FTC LinearOpMode", "java", FtcOpModeTemplates.getLinearOpModeTemplate()},
+            {"FTC Iterative OpMode", "java", FtcOpModeTemplates.getIterativeOpModeTemplate()},
+            {"FTC Sensor-Only OpMode", "java", FtcOpModeTemplates.getSensorOnlyTemplate()},
+            {"FTC Autonomous", "java", FtcOpModeTemplates.getAutonomousTemplate()},
+            {"FTC TeleOp", "java", FtcOpModeTemplates.getTeleOpTemplate()},
+            {"FTC Python OpMode", "py", FtcOpModeTemplates.getPythonTemplate()},
+        };
+        for (String[] tpl : roboticsTemplates) {
+            JMenuItem mi = new JMenuItem(tpl[0]);
+            mi.addActionListener(ev -> createNewLanguageFile(tpl[1], tpl[2]));
+            mRobotics.add(mi);
+        }
+        mRobotics.addSeparator();
+        String[][] frcTemplates = {
+            {"FRC TimedRobot", "java", FrcProjectTemplates.getTimedRobotTemplate()},
+            {"FRC Commands-Based", "java", FrcProjectTemplates.getCommandsBasedTemplate()},
+            {"FRC Constants", "java", FrcProjectTemplates.getConstantsTemplate()},
+        };
+        for (String[] tpl : frcTemplates) {
+            JMenuItem mi = new JMenuItem(tpl[0]);
+            mi.addActionListener(ev -> createNewLanguageFile(tpl[1], tpl[2]));
+            mRobotics.add(mi);
+        }
+        mNew.add(mRobotics);
         JMenuItem miOpen  = new JMenuItem("Open");  miOpen .addActionListener(this);
         JMenuItem miSave  = new JMenuItem("Save");  miSave .addActionListener(this);
         JMenuItem miPrint = new JMenuItem("Print"); miPrint.addActionListener(this);
@@ -313,39 +534,34 @@ public class Nukepad extends JFrame implements ActionListener {
         settingsPopup.add(miSettingsPage);
         settingsPopup.addSeparator();
 
-        JMenuItem miDark  = new JMenuItem("Dark Theme");
-        JMenuItem miLight = new JMenuItem("Light Theme");
-
-        miDark.addActionListener(ev -> {
-            try {
-                ThemeManager.save("dark");
-                idesettings.set("appearance.theme", "dark");
-                idesettings.save();
-                clearThemeOverrides();
-                UIManager.setLookAndFeel(new FlatDarculaLaf());
-                applyThemeToAllTabs(); applyTerminalTheme();
-                interactiveTerminal.applyTheme(true);
-                activityBar.applyTheme();
-                SwingUtilities.updateComponentTreeUI(frame); frame.repaint();
-            } catch (Exception ex) { ex.printStackTrace(); }
-        });
-
-        miLight.addActionListener(ev -> {
-            try {
-                ThemeManager.save("light");
-                idesettings.set("appearance.theme", "light");
-                idesettings.save();
-                clearThemeOverrides();
-                UIManager.setLookAndFeel(new FlatIntelliJLaf());
-                applyThemeToAllTabs(); applyTerminalTheme();
-                interactiveTerminal.applyTheme(true);
-                activityBar.applyTheme();
-                SwingUtilities.updateComponentTreeUI(frame); frame.repaint();
-            } catch (Exception ex) { ex.printStackTrace(); }
-        });
-
-        settingsPopup.add(miDark);
-        settingsPopup.add(miLight);
+        JMenu themeMenu = new JMenu("Theme");
+        ButtonGroup themeGroup = new ButtonGroup();
+        String currentTheme = ThemeManager.load();
+        for (Map.Entry<String, ThemeManager.ThemeInfo> entry : ThemeManager.THEMES.entrySet()) {
+            String key = entry.getKey();
+            ThemeManager.ThemeInfo info = entry.getValue();
+            JCheckBoxMenuItem mi = new JCheckBoxMenuItem(info.displayName, key.equals(currentTheme));
+            themeGroup.add(mi);
+            mi.addActionListener(ev -> {
+                try {
+                    clearThemeOverrides();
+                    ThemeManager.applyTheme(key);
+                    idesettings.set("appearance.theme", key);
+                    idesettings.save();
+                    cachedEditorThemeKey = null;
+                    applyThemeToAllTabs();
+                    applyTerminalTheme();
+                    interactiveTerminal.applyTheme(true);
+                    activityBar.applyTheme();
+                    statusBar.applyTheme();
+                    bottomToolWindowBar.applyTheme();
+                    bottomToolWindowBar.refreshTabs();
+                    SwingUtilities.updateComponentTreeUI(frame);
+                } catch (Exception ex) { ex.printStackTrace(); }
+            });
+            themeMenu.add(mi);
+        }
+        settingsPopup.add(themeMenu);
         settingsPopup.addSeparator();
         JMenuItem miToolchain = new JMenuItem("Toolchain Settings...");
         miToolchain.addActionListener(ev -> {
@@ -378,11 +594,6 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
         activityBar.addDividerTop();
 
 
-        activityBar.addTop("compile", ActivityBar.PAINT_COMPILE, "Compile",
-            e -> actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Compile")));
-
-        activityBar.addTop("run", ActivityBar.PAINT_RUN, "Run",
-            e -> actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Run")));
 
 // Arduino popup
         JPopupMenu arduinoPopup = new JPopupMenu();
@@ -451,6 +662,366 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
         activityBar.addTop("arduino", ActivityBar.PAINT_COMPILE, "Arduino", e ->
             arduinoPopup.show(activityBar, ActivityBar.getBarWidth(), 0));
 
+// Android popup
+        JPopupMenu androidPopup = new JPopupMenu();
+        JMenuItem miAndroidBuild = new JMenuItem("Build (assembleDebug)");
+        miAndroidBuild.addActionListener(ev -> actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Compile")));
+        androidPopup.add(miAndroidBuild);
+
+        JMenuItem miAndroidRun = new JMenuItem("Build & Deploy");
+        miAndroidRun.addActionListener(ev -> {
+            if (currentFile == null) {
+                terminalArea.append("[Android] No project open.\n");
+                bottomTabs.setSelectedIndex(0);
+                return;
+            }
+            terminalArea.setText("");
+            File androidRoot = getProjectRoot();
+            for (BuildRunner runner : buildRunners) {
+                if (runner.canHandle(androidRoot, currentFile)) {
+                    runner.run(androidRoot, currentFile, terminalArea, bottomTabs);
+                    break;
+                }
+            }
+        });
+        androidPopup.add(miAndroidRun);
+
+        androidPopup.addSeparator();
+
+        JMenuItem miLogcat = new JMenuItem("Open Logcat");
+        miLogcat.addActionListener(ev -> {
+            for (int i = 0; i < bottomTabs.getTabCount(); i++) {
+                if ("Logcat".equals(bottomTabs.getTitleAt(i))) {
+                    bottomTabs.setSelectedIndex(i);
+                    if (!terminalVisible) toggleTerminal();
+                    return;
+                }
+            }
+        });
+        androidPopup.add(miLogcat);
+
+        JMenuItem miDeviceMgr = new JMenuItem("Device Manager...");
+        miDeviceMgr.addActionListener(ev -> {
+            JFrame deviceFrame = new JFrame("Device Manager");
+            deviceFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            deviceFrame.setContentPane(deviceManagerPanel);
+            deviceFrame.setSize(400, 450);
+            deviceFrame.setLocationRelativeTo(frame);
+            deviceFrame.setVisible(true);
+            deviceManagerPanel.refresh();
+        });
+        androidPopup.add(miDeviceMgr);
+
+        androidPopup.addSeparator();
+
+        JMenuItem miDeviceExplorer = new JMenuItem("Device File Explorer...");
+        miDeviceExplorer.addActionListener(ev -> {
+            DeviceFileExplorerPanel panel = new DeviceFileExplorerPanel();
+            JFrame explorerFrame = new JFrame("Device File Explorer");
+            explorerFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            explorerFrame.setContentPane(panel);
+            explorerFrame.setSize(700, 500);
+            explorerFrame.setLocationRelativeTo(frame);
+            explorerFrame.setVisible(true);
+        });
+        androidPopup.add(miDeviceExplorer);
+
+        JMenuItem miGradleSync = new JMenuItem("Gradle Sync...");
+        miGradleSync.addActionListener(ev -> {
+            GradleSyncPanel panel = new GradleSyncPanel();
+            panel.setProjectRoot(getProjectRoot());
+            JFrame gradleFrame = new JFrame("Gradle Sync");
+            gradleFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            gradleFrame.setContentPane(panel);
+            gradleFrame.setSize(700, 500);
+            gradleFrame.setLocationRelativeTo(frame);
+            gradleFrame.setVisible(true);
+        });
+        androidPopup.add(miGradleSync);
+
+        JMenuItem miApkAnalyzer = new JMenuItem("APK Analyzer...");
+        miApkAnalyzer.addActionListener(ev -> {
+            ApkAnalyzerPanel panel = new ApkAnalyzerPanel();
+            JFrame apkFrame = new JFrame("APK Analyzer");
+            apkFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            apkFrame.setContentPane(panel);
+            apkFrame.setSize(700, 500);
+            apkFrame.setLocationRelativeTo(frame);
+            apkFrame.setVisible(true);
+        });
+        androidPopup.add(miApkAnalyzer);
+
+        JMenuItem miSigningConfig = new JMenuItem("Signing Config...");
+        miSigningConfig.addActionListener(ev -> {
+            SigningConfigPanel panel = new SigningConfigPanel();
+            JFrame signFrame = new JFrame("Signing Config");
+            signFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            signFrame.setContentPane(panel);
+            signFrame.setSize(700, 400);
+            signFrame.setLocationRelativeTo(frame);
+            signFrame.setVisible(true);
+        });
+        androidPopup.add(miSigningConfig);
+
+        JMenuItem miBuildVariants = new JMenuItem("Build Variants...");
+        miBuildVariants.addActionListener(ev -> {
+            BuildVariantsPanel panel = new BuildVariantsPanel();
+            panel.setProjectRoot(getProjectRoot());
+            JFrame variantFrame = new JFrame("Build Variants");
+            variantFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            variantFrame.setContentPane(panel);
+            variantFrame.setSize(600, 400);
+            variantFrame.setLocationRelativeTo(frame);
+            variantFrame.setVisible(true);
+        });
+        androidPopup.add(miBuildVariants);
+
+        JMenuItem miSdkManager = new JMenuItem("SDK Manager...");
+        miSdkManager.addActionListener(ev -> {
+            SdkManagerPanel panel = new SdkManagerPanel();
+            JFrame sdkFrame = new JFrame("SDK Manager");
+            sdkFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            sdkFrame.setContentPane(panel);
+            sdkFrame.setSize(800, 500);
+            sdkFrame.setLocationRelativeTo(frame);
+            sdkFrame.setVisible(true);
+        });
+        androidPopup.add(miSdkManager);
+
+        activityBar.addTop("android", ActivityBar.PAINT_ANDROID, "Android", e ->
+            androidPopup.show(activityBar, ActivityBar.getBarWidth(), 0));
+
+// ESP-IDF popup
+        JPopupMenu espIdfPopup = new JPopupMenu();
+        JMenuItem miEspBuild = new JMenuItem("Build");
+        miEspBuild.addActionListener(ev -> actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Compile")));
+        espIdfPopup.add(miEspBuild);
+
+        JMenuItem miEspFlash = new JMenuItem("Build & Flash");
+        miEspFlash.addActionListener(ev -> {
+            if (currentFile == null) {
+                terminalArea.append("[ESP-IDF] No project open.\n");
+                bottomTabs.setSelectedIndex(0);
+                return;
+            }
+            terminalArea.setText("");
+            File espRoot = getProjectRoot();
+            for (BuildRunner runner : buildRunners) {
+                if (runner.canHandle(espRoot, currentFile)) {
+                    runner.run(espRoot, currentFile, terminalArea, bottomTabs);
+                    break;
+                }
+            }
+        });
+        espIdfPopup.add(miEspFlash);
+
+        JMenuItem miEspMonitor = new JMenuItem("Serial Monitor");
+        miEspMonitor.addActionListener(ev -> {
+            if (currentFile == null) return;
+            terminalArea.setText("");
+            File espRoot = getProjectRoot();
+            espIdfRunner.monitor(espRoot, terminalArea);
+            bottomTabs.setSelectedIndex(0);
+        });
+        espIdfPopup.add(miEspMonitor);
+
+        espIdfPopup.addSeparator();
+
+        JMenuItem miEspMenuconfig = new JMenuItem("Menuconfig");
+        miEspMenuconfig.addActionListener(ev -> {
+            if (currentFile == null) return;
+            terminalArea.setText("");
+            File espRoot = getProjectRoot();
+            espIdfRunner.menuconfig(espRoot, terminalArea);
+            bottomTabs.setSelectedIndex(0);
+        });
+        espIdfPopup.add(miEspMenuconfig);
+
+        JMenuItem miEspClean = new JMenuItem("Full Clean");
+        miEspClean.addActionListener(ev -> {
+            if (currentFile == null) return;
+            terminalArea.setText("");
+            File espRoot = getProjectRoot();
+            espIdfRunner.clean(espRoot, terminalArea);
+            bottomTabs.setSelectedIndex(0);
+        });
+        espIdfPopup.add(miEspClean);
+
+        espIdfPopup.addSeparator();
+
+        JMenuItem miNewEspIdf = new JMenuItem("New ESP-IDF Project...");
+        miNewEspIdf.addActionListener(ev -> {
+            String name = JOptionPane.showInputDialog(frame, "Enter project name:");
+            if (name != null && !name.trim().isEmpty()) {
+                File dir = getSelectedDirectory();
+                if (dir == null) dir = new File(System.getProperty("user.home"));
+                try {
+                    File projectDir = EspIdfProjectTemplate.createProject(dir, name.trim());
+                    terminalArea.append("[ESP-IDF] Created project: " + projectDir.getAbsolutePath() + "\n");
+                    addToOpenedProjects(projectDir.getAbsolutePath());
+                    if (fileTree != null) refreshTreeDirectory(fileTree, dir);
+                } catch (Exception ex) {
+                    terminalArea.append("[ESP-IDF] Failed to create project: " + ex.getMessage() + "\n");
+                }
+            }
+        });
+        espIdfPopup.add(miNewEspIdf);
+
+        activityBar.addTop("espidf", ActivityBar.PAINT_CONSOLE, "ESP-IDF", e ->
+            espIdfPopup.show(activityBar, ActivityBar.getBarWidth(), 0));
+
+// Robotics popup
+        JPopupMenu roboticsPopup = new JPopupMenu();
+
+        JMenu ftcSub = new JMenu("FTC");
+        JMenuItem miFtcBuild = new JMenuItem("Build (assembleDebug)");
+        miFtcBuild.addActionListener(ev -> actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Compile")));
+        ftcSub.add(miFtcBuild);
+        JMenuItem miFtcDeploy = new JMenuItem("Build & Deploy to Hub");
+        miFtcDeploy.addActionListener(ev -> {
+            if (currentFile == null) {
+                terminalArea.append("[FTC] No file open.\n");
+                return;
+            }
+            terminalArea.setText("");
+            File ftcRoot = getProjectRoot();
+            for (BuildRunner runner : buildRunners) {
+                if (runner.canHandle(ftcRoot, currentFile)) {
+                    runner.run(ftcRoot, currentFile, terminalArea, bottomTabs);
+                    break;
+                }
+            }
+        });
+        ftcSub.add(miFtcDeploy);
+        ftcSub.addSeparator();
+        JMenuItem miFtcLogcat = new JMenuItem("FTC Logcat");
+        miFtcLogcat.addActionListener(ev -> {
+            for (int i = 0; i < bottomTabs.getTabCount(); i++) {
+                if ("FTC Logcat".equals(bottomTabs.getTitleAt(i))) {
+                    bottomTabs.setSelectedIndex(i);
+                    if (!terminalVisible) toggleTerminal();
+                    return;
+                }
+            }
+        });
+        ftcSub.add(miFtcLogcat);
+        JMenuItem miFtcHwConfig = new JMenuItem("Hardware Config Editor...");
+        miFtcHwConfig.addActionListener(ev -> {
+            JFrame hwFrame = new JFrame("FTC Hardware Config Editor");
+            hwFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            hwFrame.setContentPane(new FtcHardwareConfigEditor());
+            hwFrame.setSize(700, 500);
+            hwFrame.setLocationRelativeTo(frame);
+            hwFrame.setVisible(true);
+        });
+        ftcSub.add(miFtcHwConfig);
+        JMenuItem miFtcDashboard = new JMenuItem("FTC Dashboard...");
+        miFtcDashboard.addActionListener(ev -> {
+            JFrame dashFrame = new JFrame("FTC Dashboard");
+            dashFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            dashFrame.setContentPane(new FtcDashboardPanel());
+            dashFrame.setSize(600, 450);
+            dashFrame.setLocationRelativeTo(frame);
+            dashFrame.setVisible(true);
+        });
+        ftcSub.add(miFtcDashboard);
+        roboticsPopup.add(ftcSub);
+
+        JMenu frcSub = new JMenu("FRC");
+        JMenuItem miFrcBuild = new JMenuItem("Build (gradlew build)");
+        miFrcBuild.addActionListener(ev -> actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Compile")));
+        frcSub.add(miFrcBuild);
+        JMenuItem miFrcDeploy = new JMenuItem("Deploy to RoboRIO");
+        miFrcDeploy.addActionListener(ev -> {
+            if (currentFile == null) {
+                terminalArea.append("[FRC] No file open.\n");
+                return;
+            }
+            terminalArea.setText("");
+            File frcRoot = getProjectRoot();
+            for (BuildRunner runner : buildRunners) {
+                if (runner.canHandle(frcRoot, currentFile)) {
+                    runner.run(frcRoot, currentFile, terminalArea, bottomTabs);
+                    break;
+                }
+            }
+        });
+        frcSub.add(miFrcDeploy);
+        frcSub.addSeparator();
+        JMenuItem miFrcDash = new JMenuItem("SmartDashboard...");
+        miFrcDash.addActionListener(ev -> {
+            JFrame dashFrame = new JFrame("FRC SmartDashboard");
+            dashFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            dashFrame.setContentPane(new FrcSmartDashboardPanel());
+            dashFrame.setSize(700, 500);
+            dashFrame.setLocationRelativeTo(frame);
+            dashFrame.setVisible(true);
+        });
+        frcSub.add(miFrcDash);
+        roboticsPopup.add(frcSub);
+
+        roboticsPopup.addSeparator();
+
+        JMenuItem miSdkRef = new JMenuItem("SDK API Reference...");
+        miSdkRef.addActionListener(ev -> {
+            JFrame sdkFrame = new JFrame("Robot SDK API Reference");
+            sdkFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            sdkFrame.setContentPane(new SdkReferencePanel());
+            sdkFrame.setSize(800, 600);
+            sdkFrame.setLocationRelativeTo(frame);
+            sdkFrame.setVisible(true);
+        });
+        roboticsPopup.add(miSdkRef);
+
+        JMenuItem miGamepad = new JMenuItem("Gamepad Visualizer...");
+        miGamepad.addActionListener(ev -> {
+            JFrame gpFrame = new JFrame("Gamepad Visualizer");
+            gpFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            gpFrame.setContentPane(new GamepadVisualizerPanel());
+            gpFrame.setSize(500, 450);
+            gpFrame.setLocationRelativeTo(frame);
+            gpFrame.setVisible(true);
+        });
+        roboticsPopup.add(miGamepad);
+
+        JMenuItem miMotorServo = new JMenuItem("Motor/Servo Helper...");
+        miMotorServo.addActionListener(ev -> {
+            JFrame msFrame = new JFrame("Motor/Servo Helper");
+            msFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            msFrame.setContentPane(new MotorServoHelperPanel());
+            msFrame.setSize(600, 450);
+            msFrame.setLocationRelativeTo(frame);
+            msFrame.setVisible(true);
+        });
+        roboticsPopup.add(miMotorServo);
+
+        JMenuItem miSnippets = new JMenuItem("Code Snippets...");
+        miSnippets.addActionListener(ev -> {
+            JFrame snFrame = new JFrame("Robotics Code Snippets");
+            snFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            snFrame.setContentPane(new CodeSnippetsPanel());
+            snFrame.setSize(500, 600);
+            snFrame.setLocationRelativeTo(frame);
+            snFrame.setVisible(true);
+        });
+        roboticsPopup.add(miSnippets);
+
+        roboticsPopup.addSeparator();
+
+        JMenuItem miCompetition = new JMenuItem("Competition Mode...");
+        miCompetition.addActionListener(ev -> {
+            JFrame compFrame = new JFrame("Competition Mode");
+            compFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            compFrame.setContentPane(new CompetitionModePanel());
+            compFrame.setSize(500, 400);
+            compFrame.setLocationRelativeTo(frame);
+            compFrame.setVisible(true);
+        });
+        roboticsPopup.add(miCompetition);
+
+        activityBar.addTop("robotics", ActivityBar.PAINT_HAMMER, "Robotics", e ->
+            roboticsPopup.show(activityBar, ActivityBar.getBarWidth(), 0));
+
 
         activityBar.addTop("terminal", ActivityBar.PAINT_TERM, "Toggle Terminal",
             e -> toggleTerminal());
@@ -494,258 +1065,153 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
         setupDragAndDrop(text);
 
         JLabel loadingLabel = new JLabel("Loading...", SwingConstants.CENTER);
+
+        buildBottomPanel();
+        lspDiagnosticsParser = new LspDiagnosticsParser(text, lspManager, problemsModel);
+
+        JPanel bottomSection = new JPanel(new BorderLayout());
+        bottomToolWindowBar = new BottomToolWindowBar(bottomTabs, this::toggleTerminal);
+        bottomSection.add(bottomToolWindowBar, BorderLayout.NORTH);
+        bottomSection.add(bottomTabs, BorderLayout.CENTER);
+
         verticalSplit = new JSplitPane(
                 JSplitPane.VERTICAL_SPLIT,
                 tabs,
-                buildBottomPanel());
+                bottomSection);
         gitRunner = new GitRunner(terminalArea, bottomTabs);
         gitPanel = new GitPanel(gitRunner);
         verticalSplit.setResizeWeight(0.75);
+        verticalSplit.setDividerLocation(1.0);
+        verticalSplit.setDividerSize(5);
+        verticalSplit.setBorder(null);
+        verticalSplit.setOneTouchExpandable(false);
+        bottomSection.setVisible(false);
+
+        DefaultMutableTreeNode initRoot = new DefaultMutableTreeNode("Projects");
+        DefaultTreeModel initModel = new DefaultTreeModel(initRoot);
+        projectToolWindow = new ProjectToolWindow(initRoot, initModel);
+        projectToolWindow.setPreferredSize(new Dimension(280, 0));
 
         outerHSplit = new JSplitPane(
                 JSplitPane.HORIZONTAL_SPLIT,
-                loadingLabel,
+                projectToolWindow,
                 verticalSplit);
         outerHSplit.setDividerLocation(280);
-        frame.add(activityBar, BorderLayout.WEST);
-        frame.add(outerHSplit, BorderLayout.CENTER);
+        outerHSplit.setDividerSize(5);
+        outerHSplit.setBorder(null);
+        outerHSplit.setOneTouchExpandable(false);
+
+        statusBar = new StatusBar();
+        statusBar.setPreferredSize(new Dimension(0, 24));
+
+        JMenuBar menuBar = JetBrainsMenuBuilder.build(this);
+        frame.setJMenuBar(menuBar);
+
+        JPanel toolbar = buildToolbar();
+        topSection = new JPanel(new BorderLayout());
+        topSection.add(toolbar, BorderLayout.CENTER);
+
+        frame.getContentPane().add(topSection, BorderLayout.NORTH);
+        frame.getContentPane().add(outerHSplit, BorderLayout.CENTER);
+        frame.getContentPane().add(statusBar, BorderLayout.SOUTH);
 
         frame.setSize(1280, 720);
         frame.setVisible(true);
-        new javax.swing.SwingWorker<JTabbedPane, Void>() {
+        hookTabFocusTracking(tabs);
+
+        // Global keyboard shortcuts
+        frame.getRootPane().getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F,
+                    java.awt.event.InputEvent.CTRL_DOWN_MASK), "openFindReplace");
+        frame.getRootPane().getActionMap().put("openFindReplace", new javax.swing.AbstractAction() {
             @Override
-            protected JTabbedPane doInBackground() {
-                File rootDir = new File(System.getProperty("user.home"));
-                DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(rootDir);
-                rootNode.add(new DefaultMutableTreeNode("Loading..."));
-                DefaultTreeModel treeModel = new DefaultTreeModel(rootNode);
-                fileTree = new JTree(treeModel);
-                fileTree.setCellRenderer(new FileTreeCellRenderer());
-                fileTree.setRootVisible(true);
-                fileTree.setToggleClickCount(2);
-                javax.swing.SwingUtilities.invokeLater(() -> fileTree.collapseRow(0));
-                JScrollPane treeScroll = new JScrollPane(fileTree);
-
-                fileTree.addTreeSelectionListener(e -> {
-                    javax.swing.tree.TreePath path = e.getPath();
-                    if (path != null) {
-                        DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
-                        Object userObj = node.getUserObject();
-                        if (userObj instanceof File) {
-                            File selected = (File) userObj;
-                            activeDirectory = selected.isDirectory() ? selected : selected.getParentFile();
-                            if (gitPanel != null && activeDirectory != null) {
-                                gitPanel.setRepoDir(activeDirectory);
-                            }
-                        }
-                    }
-                });
-                fileTree.addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mousePressed(MouseEvent e) {
-                        maybeShowPopup(e, fileTree);
-                    }
-
-                    @Override
-                    public void mouseReleased(MouseEvent e) {
-                        maybeShowPopup(e, fileTree);
-                    }
-                });
-
-                fileTree.addTreeExpansionListener(new javax.swing.event.TreeExpansionListener() {
-                    @Override
-                    public void treeExpanded(TreeExpansionEvent event) {
-                        DefaultMutableTreeNode node = (DefaultMutableTreeNode) event.getPath().getLastPathComponent();
-                        if (node.getChildCount() == 1 && node.getFirstChild().toString().equals("Loading...")) {
-                            node.removeAllChildren();
-                            File folder = (File) node.getUserObject();
-                            File[] children = folder.listFiles();
-                            if (children != null) {
-                                java.util.Arrays.sort(children, (a, b) -> {
-                                    if (a.isDirectory() && !b.isDirectory())
-                                        return -1;
-                                    if (!a.isDirectory() && b.isDirectory())
-                                        return 1;
-                                    return a.getName().compareToIgnoreCase(b.getName());
-                                });
-                                for (File child : children) {
-                                    DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(child);
-                                    if (child.isDirectory()) {
-                                        childNode.add(new DefaultMutableTreeNode("Loading..."));
-                                    }
-                                    node.add(childNode);
-                                }
-                            }
-                            treeModel.reload(node);
-                        }
-                    }
-
-                    @Override
-                    public void treeCollapsed(javax.swing.event.TreeExpansionEvent event) {
-
-                    }
-
-                });
-
-                JPanel categoriesPanel = buildCategoriesPanel();
-                JPanel categoriesWrapper = new JPanel(new BorderLayout());
-                categoriesWrapper.add(categoriesPanel, BorderLayout.NORTH);
-                JScrollPane categoriesScroll = new JScrollPane(categoriesWrapper);
-
-                openedProjectsTree = new JTree(openedProjectsTreeModel);
-                openedProjectsTree.setCellRenderer(new FileTreeCellRenderer());
-                openedProjectsTree.setRootVisible(false);
-                openedProjectsTree.addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mouseClicked(MouseEvent e) {
-                        if (e.getClickCount() == 2) {
-                            int row = openedProjectsTree.getRowForLocation(e.getX(), e.getY());
-                            if (row < 0)
-                                return;
-                            javax.swing.tree.TreePath treePath = openedProjectsTree.getPathForRow(row);
-                            if (treePath == null)
-                                return;
-                            DefaultMutableTreeNode node = (DefaultMutableTreeNode) treePath.getLastPathComponent();
-                            Object userObj = node.getUserObject();
-                            File clicked = null;
-                            if (userObj instanceof File) {
-                                clicked = (File) userObj;
-                            } else if (userObj instanceof ProjectNode) {
-                                clicked = ((ProjectNode) userObj).file;
-                            }
-                            if (clicked == null || clicked.isDirectory())
-                                return;
-                            try {
-                                String content = new String(Files.readAllBytes(clicked.toPath()));
-                                openFileInNewTab(clicked, content);
-                            } catch (IOException ex) {
-                                ex.printStackTrace();
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void mousePressed(MouseEvent e) {
-                        maybeShowPopup(e, openedProjectsTree);
-                    }
-
-                    @Override
-                    public void mouseReleased(MouseEvent e) {
-                        maybeShowPopup(e, openedProjectsTree);
-                    }
-                });
-                openedProjectsTree.addTreeSelectionListener(e -> {
-                    javax.swing.tree.TreePath path = e.getPath();
-                    if (path != null) {
-                        DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
-                        Object userObj = node.getUserObject();
-                        File selected = null;
-                        if (userObj instanceof File) {
-                            selected = (File) userObj;
-                        } else if (userObj instanceof ProjectNode) {
-                            selected = ((ProjectNode) userObj).file;
-                        }
-                        if (selected != null) {
-                            activeDirectory = selected.isDirectory() ? selected : selected.getParentFile();
-                            if (gitPanel != null && activeDirectory != null) {
-                                gitPanel.setRepoDir(activeDirectory);
-                            }
-                        }
-                    }
-                });
-                JScrollPane openedScroll = new JScrollPane(openedProjectsTree);
-                openedProjectsTree.setRootVisible(false);
-                openedProjectsTree.addTreeExpansionListener(new javax.swing.event.TreeExpansionListener() {
-                    @Override
-                    public void treeExpanded(javax.swing.event.TreeExpansionEvent event) {
-                        DefaultMutableTreeNode node = (DefaultMutableTreeNode) event.getPath().getLastPathComponent();
-
-                        if (node.getChildCount() == 1 && node.getFirstChild().toString().equals("Loading...")) {
-                            node.removeAllChildren();
-                            Object userObj = node.getUserObject();
-                            File folder = null;
-                            if (userObj instanceof File) {
-                                folder = (File) userObj;
-                            } else if (userObj instanceof ProjectNode) {
-                                folder = ((ProjectNode) userObj).file;
-                            }
-                            if (folder == null) return;
-                            File[] children = folder.listFiles();
-                            if (children != null) {
-                                java.util.Arrays.sort(children, (a, b) -> {
-                                    if (a.isDirectory() && !b.isDirectory())
-                                        return -1;
-                                    if (!a.isDirectory() && b.isDirectory())
-                                        return 1;
-                                    return a.getName().compareToIgnoreCase(b.getName());
-                                });
-                                for (File child : children) {
-                                    DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(child);
-                                    if (child.isDirectory()) {
-                                        childNode.add(new DefaultMutableTreeNode("Loading..."));
-                                    }
-                                    node.add(childNode);
-                                }
-                            }
-                            openedProjectsTreeModel.reload(node);
-                        }
-                    }
-
-                    @Override
-                    public void treeCollapsed(TreeExpansionEvent event) {
-                    }
-                });
-
-                JTabbedPane leftTabs = new JTabbedPane();
-                  ImageIcon filesIcon = new ImageIcon(getClass().getResource("/icons/files.png"));
-                  ImageIcon searchIcon = new ImageIcon(getClass().getResource("/icons/search.png"));
-                  ImageIcon categoriesIcon = new ImageIcon(getClass().getResource("/icons/categories.png"));
-                  ImageIcon projectsIcon = new ImageIcon(getClass().getResource("/icons/projects.png"));
-                  ImageIcon gitIcon = new ImageIcon(getClass().getResource("/icons/git.png"));
-                  ImageIcon openedProjectsIcon = new ImageIcon(getClass().getResource("/icons/openedprojects.png"));
-
-                leftTabs.addTab(null, scaleIcon(filesIcon, 24), treeScroll, "Files");
-                leftTabs.addTab(null, scaleIcon(searchIcon, 24), null, "Search");
-                leftTabs.addTab(null, scaleIcon(categoriesIcon, 24), categoriesScroll, "Categories");
-                leftTabs.addTab(null, scaleIcon(openedProjectsIcon, 24), openedScroll, "Opened Projects");
-                leftTabs.addTab(null, scaleIcon(gitIcon, 24), gitPanel, "Git");
-                return leftTabs;
-
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (findReplaceDialog == null) {
+                    findReplaceDialog = new FindReplaceDialog(frame, text);
+                }
+                findReplaceDialog.setEditor(text);
+                findReplaceDialog.setSearchRoot(getSelectedDirectory());
+                findReplaceDialog.activate();
             }
+        });
 
-            @Override
-            protected void done() {
-                try {
-                    JTabbedPane leftTabs = get();
-                    leftTabsPanel = leftTabs;
-                    hookTabFocusTracking(tabs);
-                    outerHSplit.setLeftComponent(leftTabs);
-                    outerHSplit.setDividerLocation(280);
-
-                    JPanel searchPlaceholder = new JPanel(new BorderLayout());
-                    searchPlaceholder.add(new JLabel("Click to load search", SwingConstants.CENTER));
-                    leftTabs.setComponentAt(1, searchPlaceholder);
-
-                    leftTabs.addChangeListener(e -> {
-                        if (leftTabs.getSelectedIndex() == 1 &&
-                                leftTabs.getComponentAt(1) == searchPlaceholder) {
-                            SearchPanel sp = new SearchPanel(new File(System.getProperty("user.home")));
-                            sp.setPreferredSize(new Dimension(280, 0));
-                            sp.setMinimumSize(new Dimension(100, 100));
-                            leftTabs.setComponentAt(1, sp);
-                            leftTabs.revalidate();
-                            leftTabs.repaint();
-                        }
-
-                    });
-
-                } catch (Exception ex) {
-                    ex.printStackTrace();
+        // Start workspace auto-save (saves all open files)
+        workspaceManager.initAutoSave();
+        workspaceManager.onAutoSave(() -> {
+            for (int i = 0; i < tabs.getTabCount(); i++) {
+                Component comp = tabs.getComponentAt(i);
+                if (comp instanceof RTextScrollPane sp) {
+                    File f = (File) sp.getClientProperty("file");
+                    if (f != null && f.exists() && sp.getTextArea() instanceof RSyntaxTextArea ed) {
+                        try {
+                            java.nio.file.Files.write(f.toPath(),
+                                    ed.getText().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        } catch (Exception ignored) {}
+                    }
                 }
             }
+        });
+        workspaceManager.onSave(() -> {
+            for (int i = 0; i < tabs.getTabCount(); i++) {
+                Component comp = tabs.getComponentAt(i);
+                if (comp instanceof RTextScrollPane sp) {
+                    File f = (File) sp.getClientProperty("file");
+                    if (f != null && f.exists() && sp.getTextArea() instanceof RSyntaxTextArea ed) {
+                        try {
+                            java.nio.file.Files.write(f.toPath(),
+                                    ed.getText().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        });
 
-        }.execute();
+        cursorTrail = new CursorTrailEffect(frame);
+        frame.setGlassPane(cursorTrail);
+        cursorTrail.setOpaque(false);
 
+        tabTransition = new SmoothTabTransition(tabs);
+        tabTransition.setDuration(180);
+        tabTransition.setEase(AnimationEngine.Ease.EASE_OUT_CUBIC);
+
+        sidebarAnimator = new SmoothPanelAnimator(outerHSplit);
+
+        focusDimmer = new FocusDimmer(frame);
+        focusDimmer.setDimmedComponent(outerHSplit);
+        focusDimmer.setDimOpacity(0.2f);
+        focusDimmer.setDuration(300);
+
+        // Restore workspace (tabs + caret positions) from last session
+        restoreWorkspace();
+
+    }
+
+    private void restoreWorkspace() {
+        java.util.List<WorkspaceManager.SavedTab> savedTabs = workspaceManager.loadWorkspace();
+        if (savedTabs.isEmpty()) return;
+        for (WorkspaceManager.SavedTab st : savedTabs) {
+            try {
+                String content = new String(java.nio.file.Files.readAllBytes(st.file.toPath()),
+                        java.nio.charset.StandardCharsets.UTF_8);
+                openFileInNewTab(st.file, content);
+                RSyntaxTextArea ed = getEditorText();
+                if (ed != null) {
+                    if (st.caretPosition > 0 && st.caretPosition < ed.getDocument().getLength()) {
+                        ed.setCaretPosition(st.caretPosition);
+                    }
+                    Component comp = tabs.getSelectedComponent();
+                    if (comp instanceof RTextScrollPane sp) {
+                        javax.swing.SwingUtilities.invokeLater(() ->
+                                sp.getVerticalScrollBar().setValue(st.scrollPosition));
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        int activeIdx = workspaceManager.getActiveTabIndex();
+        if (activeIdx >= 0 && activeIdx < tabs.getTabCount()) {
+            tabs.setSelectedIndex(activeIdx);
+        }
     }
 
     private static Nukepad instance;
@@ -764,16 +1230,19 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                 text.paste();
                 break;
             case "Save":
-                JFileChooser jSave = new JFileChooser("f:");
+                JFileChooser jSave = new JFileChooser(currentFile != null ? currentFile.getParent() : System.getProperty("user.home"));
                 int rSave = jSave.showSaveDialog(null);
 
                 if (rSave == JFileChooser.APPROVE_OPTION) {
                     File file = new File(jSave.getSelectedFile().getAbsolutePath());
-                    try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, false))) {
+                    try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, StandardCharsets.UTF_8))) {
                         writer.write(text.getText());
-                        
-                         pluginManager.notifyFileSave(file);
-                         
+                        pluginManager.notifyFileSave(file);
+                        String sid = lspManager.findServerIdForFile(file);
+                        if (sid != null) {
+                            lspManager.ensureServerRunning(sid, file.getParentFile());
+                            lspManager.saveDocument(sid, file);
+                        }
                     } catch (Exception evt) {
                         JOptionPane.showMessageDialog(frame, evt.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                     }
@@ -798,7 +1267,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                         addToOpenedProjects(file.getAbsolutePath());
                     } else {
                         try {
-                            String content = new String(Files.readAllBytes(file.toPath()));
+                            String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
                             openFileInNewTab(file, content);
                         } catch (Exception evt) {
                             JOptionPane.showMessageDialog(frame, evt.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -810,7 +1279,155 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                 }
                 break;
             case "Quit":
-                frame.setVisible(false);
+                System.exit(0);
+                break;
+            case "SaveAs":
+                JFileChooser jSaveAs = new JFileChooser(currentFile != null ? currentFile.getParent() : System.getProperty("user.home"));
+                int rSaveAs = jSaveAs.showSaveDialog(frame);
+                if (rSaveAs == JFileChooser.APPROVE_OPTION) {
+                    File saveFile = new File(jSaveAs.getSelectedFile().getAbsolutePath());
+                    try (BufferedWriter writer = new BufferedWriter(new FileWriter(saveFile, StandardCharsets.UTF_8))) {
+                        writer.write(text.getText());
+                        pluginManager.notifyFileSave(saveFile);
+                        String sid = lspManager.findServerIdForFile(saveFile);
+                        if (sid != null) {
+                            lspManager.ensureServerRunning(sid, saveFile.getParentFile());
+                            lspManager.saveDocument(sid, saveFile);
+                        }
+                    } catch (Exception evt) {
+                        JOptionPane.showMessageDialog(frame, evt.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+                break;
+            case "Settings":
+                openSettingsPage();
+                break;
+            case "SelectAll":
+                text.selectAll();
+                break;
+            case "Undo":
+                terminalArea.append("[Edit] Undo (Ctrl+Z via RSyntaxTextArea)\n");
+                break;
+            case "Redo":
+                terminalArea.append("[Edit] Redo (Ctrl+Y via RSyntaxTextArea)\n");
+                break;
+            case "ToggleTerminal":
+                toggleTerminal();
+                break;
+            case "ToggleSidebar":
+                if (outerHSplit.getDividerLocation() > 10) {
+                    lastSidebarWidth = outerHSplit.getDividerLocation();
+                    outerHSplit.setDividerLocation(0);
+                } else {
+                    outerHSplit.setDividerLocation(lastSidebarWidth > 0 ? lastSidebarWidth : 280);
+                }
+                outerHSplit.revalidate();
+                break;
+            case "ShowProject":
+                outerHSplit.setDividerLocation(lastSidebarWidth > 0 ? lastSidebarWidth : 280);
+                outerHSplit.revalidate();
+                break;
+            case "ShowProblems":
+                showBottomTab(1);
+                break;
+            case "ShowLogcat":
+                showBottomTab(4);
+                break;
+            case "ShowFtcLogcat":
+                showBottomTab(5);
+                break;
+            case "ShowSdkReference":
+                showBottomTab(8);
+                break;
+            case "FullScreen":
+                if ((frame.getExtendedState() & JFrame.MAXIMIZED_BOTH) == JFrame.MAXIMIZED_BOTH) {
+                    frame.setExtendedState(JFrame.NORMAL);
+                } else {
+                    frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+                }
+                break;
+            case "Debug":
+            case "RunNoDebug":
+            case "RunCurrentFile":
+            case "DebugCurrentFile":
+                actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Run"));
+                break;
+            case "ToolchainSettings":
+                ToolchainSettingsPanel tcPanel = new ToolchainSettingsPanel(frame, toolchainSettings);
+                tcPanel.setVisible(true);
+                break;
+            case "ArduinoBoardManager":
+                showBottomTab(3);
+                terminalArea.append("[Arduino] Opening Board Manager...\n");
+                break;
+            case "ArduinoLibraryManager":
+                showBottomTab(3);
+                terminalArea.append("[Arduino] Opening Library Manager...\n");
+                break;
+            case "ArduinoSerialMonitor":
+                showBottomTab(3);
+                break;
+            case "GamepadVisualizer":
+                showBottomTab(6);
+                break;
+            case "MotorServoHelper":
+                showBottomTab(7);
+                break;
+            case "CodeSnippets":
+                showBottomTab(8);
+                break;
+            case "DeviceManager":
+                terminalArea.append("[Device Manager] Scanning for connected devices...\n");
+                showBottomTab(0);
+                break;
+            case "FtcHardwareConfig":
+                terminalArea.append("[FTC] Opening Hardware Config Editor...\n");
+                showBottomTab(0);
+                break;
+            case "FtcDashboard":
+                terminalArea.append("[FTC] Starting FTC Dashboard...\n");
+                showBottomTab(0);
+                break;
+            case "FrcSmartDashboard":
+                terminalArea.append("[FRC] Starting SmartDashboard...\n");
+                showBottomTab(0);
+                break;
+            case "GitInit":
+            case "GitStatus":
+            case "GitPull":
+            case "GitPush":
+            case "GitLog":
+            case "GitDiff":
+                String gitCmd = s.replace("Git", "").toLowerCase();
+                gitRunner.run(getSelectedDirectory(), () -> { if (gitPanel != null) gitPanel.setRepoDir(getSelectedDirectory()); }, gitCmd);
+                break;
+            case "GitNewBranch":
+                String bname = JOptionPane.showInputDialog(frame, "Branch name:");
+                if (bname != null && !bname.isBlank()) {
+                    gitRunner.run(getSelectedDirectory(), () -> { if (gitPanel != null) gitPanel.setRepoDir(getSelectedDirectory()); }, "checkout", "-b", bname);
+                }
+                break;
+            case "GitAddRemoteOrigin":
+                String url = JOptionPane.showInputDialog(frame, "Enter remote origin URL:");
+                if (url != null && !url.isBlank()) {
+                    gitRunner.run(getSelectedDirectory(), () -> { if (gitPanel != null) gitPanel.setRepoDir(getSelectedDirectory()); }, "remote", "add", "origin", url.trim());
+                }
+                break;
+            case "GitPushToOrigin":
+                gitRunner.run(getSelectedDirectory(), () -> { if (gitPanel != null) gitPanel.setRepoDir(getSelectedDirectory()); }, "push", "-u", "origin", "HEAD");
+                break;
+            case "About":
+                JOptionPane.showMessageDialog(frame,
+                    "CodeForge IDE\nVersion 1.0\n\nA modern IDE for Arduino, ESP-IDF, Android,\nFTC, FRC, and general development.",
+                    "About CodeForge IDE",
+                    JOptionPane.INFORMATION_MESSAGE);
+                break;
+            case "GitHubRepository":
+                try {
+                    Desktop.getDesktop().browse(new URI("https://github.com/croco/CodeForge-IDE"));
+                } catch (Exception ex) {
+                    terminalArea.append("[Error] Could not open browser: " + ex.getMessage() + "\n");
+                }
                 break;
             case "Compile":
                 try {
@@ -850,14 +1467,6 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                             pbC = new ProcessBuilder("gcc", currentFile.getPath(), "-o",
                                     currentFile.getPath().replace(".c", ""));
                             break;
-                        case "py":
-                        case "js":
-                        case "ts":
-                        case "tsx":
-                        case "jsx":
-                            terminalArea.append("ℹ️" + ext.toUpperCase() + "is interpreted, use Run instead.\n");
-                            bottomTabs.setSelectedIndex(0);
-                            return;
                         default:
                             terminalArea.append("ERROR: Compilation not supported for '.'" + ext + "'files.\n");
                             bottomTabs.setSelectedIndex(0);
@@ -865,34 +1474,53 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                     }
 
                     pbC.redirectErrorStream(true);
-                    Process procC = pbC.start();
-                    BufferedReader readerC = new BufferedReader(new InputStreamReader(procC.getInputStream()));
-                    Pattern errorPat = Pattern.compile(".+:(\\d+): (error|warning): (.+)");
-                    String lineC;
-                    int errors = 0, warnings = 0;
-                    while ((lineC = readerC.readLine()) != null) {
-                        terminalArea.append(lineC + "\n");
-                        Matcher m = errorPat.matcher(lineC);
-                        if (m.find()) {
-                            String lineNum = m.group(1);
-                            String type = m.group(2);
-                            String msg = m.group(3);
-                            String icon = type.equals("error") ? "❌" : "⚠️";
-                            problemsModel.addRow(new Object[] { icon, msg, lineNum, currentFile.getName() });
-                            if (type.equals("error"))
-                                errors++;
-                            else
-                                warnings++;
+                    final ProcessBuilder finalPbC = pbC;
+                    terminalArea.append("Compiling...\n");
+
+                    new javax.swing.SwingWorker<Integer, Void>() {
+                        @Override
+                        protected Integer doInBackground() throws Exception {
+                            Process procC = finalPbC.start();
+                            runningProcess = procC;
+                            BufferedReader readerC = new BufferedReader(new InputStreamReader(procC.getInputStream()));
+                            Pattern errorPat = Pattern.compile(".+:(\\d+): (error|warning): (.+)");
+                            String lineC;
+                            while ((lineC = readerC.readLine()) != null) {
+                                final String ln = lineC;
+                                final Matcher m = errorPat.matcher(lineC);
+                                SwingUtilities.invokeLater(() -> {
+                                    terminalArea.append(ln + "\n");
+                                    if (m.find()) {
+                                        String lineNum = m.group(1);
+                                        String type = m.group(2);
+                                        String msg = m.group(3);
+                                        String icon = type.equals("error") ? "❌" : "⚠️";
+                                        problemsModel.addRow(new Object[] { icon, msg, lineNum, currentFile.getName() });
+                                    }
+                                });
+                            }
+                            return procC.waitFor();
                         }
-                    }
-                    procC.waitFor();
-                    if (procC.exitValue() == 0) {
-                        terminalArea.append("\n ✅ Build successful. \n");
-                        bottomTabs.setSelectedIndex(0);
-                    } else {
-                        terminalArea.append("\n ❌ Build failed -" + errors + "error(s), " + warnings + "warning(s)\n");
-                        bottomTabs.setSelectedIndex(1);
-                    }
+
+                        @Override
+                        protected void done() {
+                            try {
+                                int exitCode = get();
+                                if (exitCode == 0) {
+                                    terminalArea.append("\n ✅ Build successful. \n");
+                                    bottomTabs.setSelectedIndex(0);
+                                } else {
+                                    terminalArea.append("\n ❌ Build failed.\n");
+                                    bottomTabs.setSelectedIndex(1);
+                                }
+                            } catch (Exception ex) {
+                                terminalArea.append("Compile error: " + ex.getMessage() + "\n");
+                                bottomTabs.setSelectedIndex(0);
+                            } finally {
+                                runningProcess = null;
+                            }
+                        }
+                    }.execute();
 
                 } catch (Exception evt) {
                     terminalArea.append("Exception: " + evt.getMessage() + "\n");
@@ -934,12 +1562,6 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                     case "py":
                         pbR = new ProcessBuilder("python3", currentFile.getPath());
                         break;
-                    case "ts":
-                    case "tsx":
-                    case "jsx":
-                    case "js":
-                        pbR = new ProcessBuilder("node", currentFile.getPath());
-                        break;
                     case "cpp":
                     case "c":
                         pbR = new ProcessBuilder(currentFile.getPath().replace("." + ext2, ""));
@@ -957,6 +1579,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                     @Override
                     protected Integer doInBackground() throws Exception {
                         Process proc = finalPb.start();
+                        runningProcess = proc;
                         BufferedReader reader = new BufferedReader(
                                 new InputStreamReader(proc.getInputStream()));
                         String line;
@@ -982,6 +1605,8 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                             terminalArea.append("\n--- Process exited with code " + exitCode + " ---\n");
                         } catch (Exception ex) {
                             terminalArea.append("Exception: " + ex.getMessage() + "\n");
+                        } finally {
+                            runningProcess = null;
                         }
                     }
                 }.execute();
@@ -993,7 +1618,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
     }
 
     public static void main(String[] args) {
-        new IntroScreen();
+        javax.swing.SwingUtilities.invokeLater(() -> new Nukepad(null));
     }
 
     public void openWebPage(String url) {
@@ -1002,6 +1627,10 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
         } catch (java.io.IOException e) {
             System.out.println(e.getMessage());
         }
+    }
+
+    public RSyntaxTextArea getEditorText() {
+        return text;
     }
 
     public void setEditorText(String textis) {
@@ -1023,6 +1652,8 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
         applyEditorTheme(editor);
         applySettingsToEditor(editor);
         installLiveErrorParser(editor);
+        EditorUndoManager undoMgr = new EditorUndoManager(editor);
+        editor.putClientProperty("undoManager", undoMgr);
         
         
         String name = file.getName().toLowerCase();
@@ -1080,23 +1711,63 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
             case "rs":
                 editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_RUST);
                 break;
+            case "kt":
+                editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_KOTLIN);
+                break;
+            case "groovy":
+            case "gradle":
+                editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_GROOVY);
+                break;
+            case "yaml":
+            case "yml":
+                editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_YAML);
+                break;
             default:
                 editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_NONE);
                 break;
         }
         
         ImportValidator importValidator = new ImportValidator(editor);
-        importValidator.setExt(ext); 
+        importValidator.setExt(ext);
         editor.addParser(importValidator);
         editor.setText(content);
-        CombinedProvider tabProvider = new CombinedProvider(editor);
-        tabProvider.setProjectWords(sharedProvider != null
-                ? ((CombinedProvider) sharedProvider).getProjectWords() // see note below
-                : Collections.emptySet());
-        AutoCompletion ac = new AutoCompletion(tabProvider);
-        ac.setAutoActivationEnabled(true);
-        ac.setAutoActivationDelay(300);
-        ac.install(editor);
+
+        String lspServerId = lspManager.findServerIdForFile(file);
+        if (lspServerId != null) {
+            LspDiagnosticsParser diagParser = new LspDiagnosticsParser(editor, lspManager, problemsModel);
+            diagParser.setCurrentFile(file);
+            editor.addParser(diagParser);
+            lspManager.addDiagnosticListener(lspServerId, diagParser::onDiagnostics);
+
+            LspCompletionProvider lspProv = new LspCompletionProvider(editor, lspManager);
+            lspProv.bind(lspServerId, file);
+            AutoCompletion lac = new AutoCompletion(lspProv);
+            lac.setAutoActivationEnabled(true);
+            lac.setAutoActivationDelay(300);
+            lac.install(editor);
+
+            LspHoverListener hov = new LspHoverListener(editor, lspManager);
+            hov.bind(lspServerId, file);
+            editor.addMouseListener(hov);
+
+            LspGoToDefinitionHandler goTo = new LspGoToDefinitionHandler(editor, lspManager, tabs);
+            goTo.bind(lspServerId, file);
+
+            LspDocumentAdapter docAdapter = new LspDocumentAdapter(editor, lspManager);
+            docAdapter.bind(lspServerId, file);
+            editor.putClientProperty("lspDocAdapter", docAdapter);
+            editor.putClientProperty("lspHoverListener", hov);
+            editor.putClientProperty("lspServerId", lspServerId);
+        } else {
+            CombinedProvider tabProvider = new CombinedProvider(editor);
+            tabProvider.setProjectWords(sharedProvider != null
+                    ? ((CombinedProvider) sharedProvider).getProjectWords()
+                    : Collections.emptySet());
+            AutoCompletion ac = new AutoCompletion(tabProvider);
+            ac.setAutoActivationEnabled(true);
+            ac.setAutoActivationDelay(300);
+            ac.install(editor);
+        }
 
         RTextScrollPane scroll = new RTextScrollPane(editor);
         scroll.setRowHeaderView(new LineNumberPanel(editor));
@@ -1113,6 +1784,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
         }
 
         makeTabClosable(tabs, scroll, file.getName(), file.getAbsolutePath());
+        updateStatusBar();
 
         addToOpenedProjects(file.getParentFile().getAbsolutePath());
 
@@ -1125,16 +1797,36 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
     private void makeTabClosable(JTabbedPane tabs, Component tab, String title, String fullPath) {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setOpaque(false);
+        panel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
 
         JLabel label = new JLabel(title);
-        JButton close = new JButton("✕");
+        label.setFont(UIManager.getFont("TabbedPane.font") != null ? UIManager.getFont("TabbedPane.font") : new Font("SansSerif", Font.PLAIN, 12));
+
+        JButton close = new JButton("\u2715");
+        close.setFont(new Font("SansSerif", Font.PLAIN, 10));
         close.setBorder(null);
         close.setFocusable(false);
         close.setContentAreaFilled(false);
+        close.setOpaque(false);
+        close.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        close.setMargin(new Insets(0, 2, 0, 2));
+        close.setForeground(UIManager.getColor("Label.disabledForeground"));
+        close.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseEntered(java.awt.event.MouseEvent e) {
+                close.setOpaque(true);
+                close.setBackground(new Color(255, 255, 255, 30));
+                close.setForeground(UIManager.getColor("Label.foreground"));
+            }
+            @Override public void mouseExited(java.awt.event.MouseEvent e) {
+                close.setOpaque(false);
+                close.setForeground(UIManager.getColor("Label.disabledForeground"));
+            }
+        });
 
         close.addActionListener(e -> {
             int index = tabs.indexOfComponent(tab);
             if (index != -1) {
+                cleanupTabResources(tab);
                 tabs.remove(index);
             }
         });
@@ -1143,6 +1835,45 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
         panel.add(close, BorderLayout.EAST);
 
         tabs.setTabComponentAt(tabs.indexOfComponent(tab), panel);
+    }
+
+    private void cleanupTabResources(Component tab) {
+        if (!(tab instanceof RTextScrollPane sp)) return;
+        RSyntaxTextArea editor = (RSyntaxTextArea) sp.getTextArea();
+        if (editor == null) return;
+
+        // Clean up LSP document adapter (shuts down its scheduler executor)
+        Object docAdapterObj = editor.getClientProperty("lspDocAdapter");
+        if (docAdapterObj instanceof LspDocumentAdapter docAdapter) {
+            docAdapter.dispose();
+        }
+
+        // Clean up LSP hover listener
+        Object hoverObj = editor.getClientProperty("lspHoverListener");
+        if (hoverObj instanceof LspHoverListener hoverListener) {
+            hoverListener.unbind();
+            editor.removeMouseListener(hoverListener);
+        }
+
+        // Clean up undo manager
+        Object undoObj = editor.getClientProperty("undoManager");
+        if (undoObj instanceof EditorUndoManager undoManager) {
+            undoManager.discardAllEdits();
+        }
+
+        // Remove all mouse listeners and action/input map bindings
+        for (var listener : editor.getMouseListeners()) {
+            editor.removeMouseListener(listener);
+        }
+        for (var listener : editor.getMouseMotionListeners()) {
+            editor.removeMouseMotionListener(listener);
+        }
+
+        // Clear document listeners by setting a fresh empty document
+        editor.setDocument(new javax.swing.text.PlainDocument());
+
+        // Null out references
+        editor.setText(null);
     }
 
     public File getSelectedDirectory() {
@@ -1278,7 +2009,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
     }
 
     private void saveCategoriesConfig() {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(CATEGORIES_CONFIG_FILE))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(CATEGORIES_CONFIG_FILE, StandardCharsets.UTF_8))) {
             for (Map.Entry<String, List<File>> entry : categoriesData.entrySet()) {
                 writer.write("[" + entry.getKey() + "]");
                 writer.newLine();
@@ -1350,14 +2081,21 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
             UIManager.put(key, null);
     }
 
+    private org.fife.ui.rsyntaxtextarea.Theme cachedEditorTheme;
+    private String cachedEditorThemeKey;
+
     private void applyEditorTheme(RSyntaxTextArea editor) {
         try {
-            String themePath = ThemeManager.load().equals("dark")
-                    ? "/org/fife/ui/rsyntaxtextarea/themes/monokai.xml"
-                    : "/org/fife/ui/rsyntaxtextarea/themes/idea.xml";
-            org.fife.ui.rsyntaxtextarea.Theme theme = org.fife.ui.rsyntaxtextarea.Theme
-                    .load(getClass().getResourceAsStream(themePath));
-            theme.apply(editor);
+            String themeKey = ThemeManager.load();
+            if (!themeKey.equals(cachedEditorThemeKey) || cachedEditorTheme == null) {
+                String themePath = ThemeManager.THEMES.get(themeKey) != null && ThemeManager.THEMES.get(themeKey).isDark
+                        ? "/org/fife/ui/rsyntaxtextarea/themes/monokai.xml"
+                        : "/org/fife/ui/rsyntaxtextarea/themes/idea.xml";
+                cachedEditorTheme = org.fife.ui.rsyntaxtextarea.Theme
+                        .load(getClass().getResourceAsStream(themePath));
+                cachedEditorThemeKey = themeKey;
+            }
+            cachedEditorTheme.apply(editor);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -1437,7 +2175,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                 if (!f.isFile())
                     return;
                 try {
-                    String content = new String(Files.readAllBytes(f.toPath()));
+                    String content = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
                     openFileInNewTab(f, content);
                 } catch (IOException ex) {
                     ex.printStackTrace();
@@ -1543,6 +2281,11 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
         folderNode.add(new DefaultMutableTreeNode("Loading..."));
         root.add(folderNode);
         openedProjectsTreeModel.reload(root);
+
+        if (projectToolWindow != null) {
+            projectToolWindow.setProjectRoot(folder);
+        }
+
         scanProjectIntoProvider(folder, sharedProvider);
         if (interactiveTerminal != null) {
             interactiveTerminal.cdTo(new File(path));
@@ -1551,6 +2294,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
 
     public void registerBuildRunner(BuildRunner runner) {
         buildRunners.add(runner);
+        buildOrchestrator.registerBuildRunner(runner);
     }
 
     public ToolchainSettings getToolchainSettings() {
@@ -1559,6 +2303,14 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
 
     public ProblemsManager getProblemsManager() {
         return problemsManager;
+    }
+
+    public BuildOrchestrator getBuildOrchestrator() {
+        return buildOrchestrator;
+    }
+
+    public FileTreeManager getFileTreeManager() {
+        return fileTreeManager;
     }
 
     public DeviceManagerPanel getDeviceManagerPanel() {
@@ -1668,7 +2420,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                         if (file.isDirectory()) {
                             addToOpenedProjects(file.getAbsolutePath());
                         } else {
-                            String content = new String(Files.readAllBytes(file.toPath()));
+                            String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
                             openFileInNewTab(file, content);
                         }
                     }
@@ -1728,6 +2480,21 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
         SerialMonitorPanel serialMonitor = new SerialMonitorPanel();
         bottomTabs.addTab("Serial Monitor", serialMonitor);
 
+        LogcatPanel logcatPanel = new LogcatPanel();
+        bottomTabs.addTab("Logcat", logcatPanel);
+
+        FtcLogcatPanel ftcLogcatPanel = new FtcLogcatPanel();
+        bottomTabs.addTab("FTC Logcat", ftcLogcatPanel);
+
+        GamepadVisualizerPanel gamepadPanel = new GamepadVisualizerPanel();
+        bottomTabs.addTab("Gamepad", gamepadPanel);
+
+        MotorServoHelperPanel motorServoPanel = new MotorServoHelperPanel();
+        bottomTabs.addTab("Motor/Servo", motorServoPanel);
+
+        CodeSnippetsPanel snippetsPanel = new CodeSnippetsPanel();
+        bottomTabs.addTab("Snippets", snippetsPanel);
+
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setPreferredSize(new Dimension(0, 200));
         wrapper.add(bottomTabs);
@@ -1739,6 +2506,124 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
         terminalArea.setBackground(isDark ? new Color(30, 30, 30) : new Color(255, 255, 255));
         terminalArea.setForeground(isDark ? new Color(200, 200, 200) : new Color(30, 30, 30));
         terminalArea.setCaretColor(isDark ? Color.WHITE : Color.BLACK);
+    }
+
+    private JPanel buildToolbar() {
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        toolbar.setBackground(UIManager.getColor("Panel.background"));
+        toolbar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, UIManager.getColor("Separator.foreground")));
+
+        Font btnFont = UIManager.getFont("Button.font");
+        if (btnFont == null) btnFont = new Font("SansSerif", Font.PLAIN, 12);
+
+        JButton btnBuild = makeToolbarButton("Build", "hammer", "Build Project (Ctrl+F9)",
+                e -> actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Compile")));
+        toolbar.add(btnBuild);
+
+        JButton btnRun = makeToolbarButton("Run", "play", "Run Current File (Shift+F10)",
+                e -> actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Run")));
+        toolbar.add(btnRun);
+
+        JButton btnDebug = makeToolbarButton("Debug", "bug", "Debug Current File (Shift+F9)", e -> {
+            terminalArea.append("[Debug] Starting debug session...\n");
+            actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "Run"));
+        });
+        toolbar.add(btnDebug);
+
+        toolbar.add(Box.createHorizontalStrut(8));
+
+        JButton btnStop = makeToolbarButton("Stop", "stop", "Stop Running Process", e -> {
+            Process p = runningProcess;
+            if (p != null && p.isAlive()) {
+                p.destroyForcibly();
+                terminalArea.append("[Stop] Process terminated.\n");
+            }
+        });
+        toolbar.add(btnStop);
+
+        toolbar.add(Box.createHorizontalStrut(8));
+
+        JButton btnTerminal = makeToolbarButton("Terminal", "console", "Toggle Terminal (Alt+F12)",
+                e -> toggleTerminal());
+        toolbar.add(btnTerminal);
+
+        toolbar.add(Box.createHorizontalGlue());
+
+        JLabel projectLabel = new JLabel("CodeForge IDE  ");
+        projectLabel.setFont(btnFont.deriveFont(Font.BOLD));
+        projectLabel.setForeground(UIManager.getColor("Separator.foreground"));
+        toolbar.add(projectLabel);
+
+        return toolbar;
+    }
+
+    private JButton makeToolbarButton(String text, String iconName, String tooltip, java.awt.event.ActionListener action) {
+        JButton btn = new JButton(text);
+        btn.setIcon(IconManager.getToolbarIcon(iconName));
+        btn.setFont(UIManager.getFont("Button.font") != null ? UIManager.getFont("Button.font") : new Font("SansSerif", Font.PLAIN, 12));
+        btn.setToolTipText(tooltip);
+        btn.addActionListener(action);
+        btn.setFocusPainted(false);
+        btn.setFocusable(false);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setOpaque(false);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.setMargin(new Insets(4, 8, 4, 8));
+        btn.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseEntered(java.awt.event.MouseEvent e) {
+                btn.setOpaque(true);
+                btn.setBackground(UIManager.getColor("Button.hoverBackground") != null
+                    ? UIManager.getColor("Button.hoverBackground") : new Color(255, 255, 255, 25));
+            }
+            @Override public void mouseExited(java.awt.event.MouseEvent e) {
+                btn.setOpaque(false);
+            }
+        });
+        return btn;
+    }
+
+    public void updateStatusBar() {
+        if (statusBar == null) return;
+        if (currentFile != null) {
+            try {
+                int pos = text.getCaret().getDot();
+                int line = text.getLineOfOffset(Math.min(pos, text.getDocument().getLength())) + 1;
+                int col = pos - text.getLineStartOffset(text.getLineOfOffset(Math.min(pos, text.getDocument().getLength()))) + 1;
+                statusBar.setFileInfo(currentFile.getAbsolutePath(), line, col);
+            } catch (Exception ignored) {}
+            String ext = currentFile.getName().contains(".")
+                    ? currentFile.getName().substring(currentFile.getName().lastIndexOf('.') + 1).toLowerCase() : "";
+            String lang = switch (ext) {
+                case "java" -> "Java";
+                case "py" -> "Python";
+                case "cpp", "c", "ino" -> "C++";
+                case "kt" -> "Kotlin";
+                case "xml" -> "XML";
+                case "gradle", "groovy" -> "Groovy";
+                case "yaml", "yml" -> "YAML";
+                case "json" -> "JSON";
+                default -> ext.isEmpty() ? "Plain" : ext.toUpperCase();
+            };
+            statusBar.setLanguage(lang);
+        }
+        ProjectTypeDetector.ProjectType type = ProjectTypeDetector.ProjectType.UNKNOWN;
+        if (activeDirectory != null) {
+            type = ProjectTypeDetector.detect(activeDirectory);
+        }
+        if (type != ProjectTypeDetector.ProjectType.UNKNOWN) {
+            Color badgeColor = switch (type) {
+                case ARDUINO -> new Color(0, 150, 136);
+                case ESP_IDF -> new Color(156, 39, 176);
+                case ANDROID -> new Color(76, 175, 80);
+                case FTC -> new Color(255, 152, 0);
+                case FRC -> new Color(33, 150, 243);
+                case VEX -> new Color(244, 67, 54);
+                case ROS2 -> new Color(63, 81, 181);
+                default -> Color.GRAY;
+            };
+            statusBar.setProjectType(type.getLabel(), badgeColor);
+        }
     }
 
     private void jumpToLine(RSyntaxTextArea editor, int line) {
@@ -1759,9 +2644,27 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
             terminalVisible = false;
         } else {
             verticalSplit.getBottomComponent().setVisible(true);
-            verticalSplit.setDividerLocation(lastDividerLocation);
+            int loc = lastDividerLocation > 0 ? lastDividerLocation : verticalSplit.getHeight() / 3;
+            verticalSplit.setDividerLocation(Math.min(loc, verticalSplit.getHeight() - 50));
             terminalVisible = true;
         }
+        verticalSplit.revalidate();
+        verticalSplit.repaint();
+    }
+
+    private void showBottomTab(int index) {
+        if (!terminalVisible) {
+            terminalVisible = true;
+            verticalSplit.getBottomComponent().setVisible(true);
+            int loc = lastDividerLocation > 0 ? lastDividerLocation : verticalSplit.getHeight() / 3;
+            verticalSplit.setDividerLocation(Math.min(loc, verticalSplit.getHeight() - 50));
+        }
+        if (index >= 0 && index < bottomTabs.getTabCount()) {
+            bottomTabs.setSelectedIndex(index);
+        }
+        bottomToolWindowBar.refreshTabs();
+        verticalSplit.revalidate();
+        verticalSplit.repaint();
     }
 
     private void installLiveErrorParser(RSyntaxTextArea editor) {
@@ -1781,9 +2684,9 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                     return result;
 
                 try {
-                    // Save current content to a temp file first
-                    File tempFile = currentFile;
-                    try (FileWriter fw = new FileWriter(tempFile)) {
+                    File tempFile = File.createTempFile("nukepad_live_", "." + ext);
+                    tempFile.deleteOnExit();
+                    try (FileWriter fw = new FileWriter(tempFile, java.nio.charset.StandardCharsets.UTF_8)) {
                         fw.write(editor.getText());
                     }
 
@@ -1851,7 +2754,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
             @Override
             protected Set<String> doInBackground() throws Exception {
                 Set<String> words = new HashSet<>();
-                java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\\\b[a-zA-Z_][a-zA-Z0-9_]{2,}\\\\b");
+                java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\b[a-zA-Z_][a-zA-Z0-9_]{2,}\\b");
                 scanDir(projectDir, p, words, 0);
                 return words;
             }
@@ -1868,7 +2771,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                         scanDir(f, p, words, depth + 1);
                     } else if (isSource(f)) {
                         String content = new String(
-                                java.nio.file.Files.readAllBytes(f.toPath()));
+                                java.nio.file.Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
                         java.util.regex.Matcher mat = p.matcher(content);
                         while (mat.find())
                             words.add(mat.group());
@@ -1945,27 +2848,32 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
 
     private void rebuildLayout() {
         frame.getContentPane().removeAll();
-        frame.add(activityBar, BorderLayout.WEST);
+
+        buildBottomPanel();
+        bottomToolWindowBar = new BottomToolWindowBar(bottomTabs, this::toggleTerminal);
+
+        JPanel bottomSection = new JPanel(new BorderLayout());
+        bottomSection.add(bottomToolWindowBar, BorderLayout.NORTH);
+        bottomSection.add(bottomTabs, BorderLayout.CENTER);
+
         verticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                tabs, buildBottomPanelWrapper());
+                tabs, bottomSection);
         verticalSplit.setResizeWeight(0.75);
 
         switch (sidebarPosition) {
             case LEFT:
                 outerHSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-                        leftTabsPanel, verticalSplit);
+                        leftTabsPanel != null ? leftTabsPanel : projectToolWindow, verticalSplit);
                 outerHSplit.setDividerLocation(280);
-                frame.add(outerHSplit, BorderLayout.CENTER);
                 break;
             case RIGHT:
                 outerHSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-                        verticalSplit, leftTabsPanel);
+                        verticalSplit, leftTabsPanel != null ? leftTabsPanel : projectToolWindow);
                 outerHSplit.setDividerLocation(frame.getWidth() - 280);
-                frame.add(outerHSplit, BorderLayout.CENTER);
                 break;
             case CENTER: {
                 JSplitPane rightSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-                        leftTabsPanel, rightTabs);
+                        leftTabsPanel != null ? leftTabsPanel : projectToolWindow, rightTabs);
                 rightSplit.setDividerLocation(280);
                 rightSplit.setResizeWeight(0.0);
 
@@ -1975,13 +2883,21 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                 fullH.setResizeWeight(0.5);
 
                 verticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                        fullH, buildBottomPanelWrapper());
+                        fullH, bottomSection);
                 verticalSplit.setResizeWeight(0.75);
 
-                frame.add(verticalSplit, BorderLayout.CENTER);
+                outerHSplit = verticalSplit;
                 break;
             }
         }
+
+        if (statusBar == null) {
+            statusBar = new StatusBar();
+            statusBar.setPreferredSize(new Dimension(0, 24));
+        }
+        frame.getContentPane().add(topSection, BorderLayout.NORTH);
+        frame.getContentPane().add(outerHSplit, BorderLayout.CENTER);
+        frame.getContentPane().add(statusBar, BorderLayout.SOUTH);
         frame.revalidate();
         frame.repaint();
     }
@@ -1999,6 +2915,13 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                     activeDirectory = f.getParentFile();
                     if (gitPanel != null)
                         gitPanel.setRepoDir(activeDirectory);
+                    LspDocumentAdapter adapter = (LspDocumentAdapter) editor.getClientProperty("lspDocAdapter");
+                    if (adapter != null && adapter.getCurrentFile() != null) {
+                        lspDocAdapter = adapter;
+                    }
+                }
+                if (findReplaceDialog != null) {
+                    findReplaceDialog.setEditor(editor);
                 }
             }
         });
@@ -2006,7 +2929,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
 
     private void openFileInPane(File file, JTabbedPane targetPane) {
         try {
-            String content = new String(Files.readAllBytes(file.toPath()));
+            String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
             openFileInTab(file, content, targetPane);
         } catch (IOException ex) {
             JOptionPane.showMessageDialog(frame, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -2078,6 +3001,20 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
                 break;
             case "php":
                 editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_PHP);
+                break;
+            case "rs":
+                editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_RUST);
+                break;
+            case "kt":
+                editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_KOTLIN);
+                break;
+            case "groovy":
+            case "gradle":
+                editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_GROOVY);
+                break;
+            case "yaml":
+            case "yml":
+                editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_YAML);
                 break;
             default:
                 editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_NONE);
@@ -2152,7 +3089,7 @@ activityBar.addBottom("settings", ActivityBar.PAINT_SETTINGS, "Settings (Theme)"
             JMenuItem open = new JMenuItem("Open");
             open.addActionListener(ae -> {
                 try {
-                    String content = new String(Files.readAllBytes(clicked.toPath()));
+                    String content = new String(Files.readAllBytes(clicked.toPath()), StandardCharsets.UTF_8);
                     openFileInNewTab(clicked, content);
                 } catch (IOException ex) {
                     ex.printStackTrace();

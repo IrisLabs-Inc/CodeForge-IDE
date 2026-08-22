@@ -1,7 +1,7 @@
 package com.adonis.Nukepad;
 
-import com.formdev.flatlaf.FlatDarculaLaf;
-import com.formdev.flatlaf.FlatIntelliJLaf;
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
@@ -246,6 +246,7 @@ public class IntroScreen {
             // pulse animation when not expanded
             pulseTimer=new javax.swing.Timer(50,e->{
                 if(!expanded){arrowAlpha=(float)(0.5+0.4*Math.abs(Math.sin(System.currentTimeMillis()/600.0)));repaint();}
+                else{pulseTimer.stop();}
             }); pulseTimer.start();
             addMouseListener(new MouseAdapter() {
                 @Override public void mouseEntered(MouseEvent e){hovered=true; repaint();}
@@ -291,8 +292,7 @@ public class IntroScreen {
 
     public IntroScreen() {
         try {
-            UIManager.setLookAndFeel(loadTheme().equals("dark")
-                ? new FlatDarculaLaf() : new FlatIntelliJLaf());
+            ThemeManager.apply();
         } catch (Exception e) { e.printStackTrace(); }
 
         BufferedImage bannerImg = loadResource("/icons/banner.png");
@@ -358,16 +358,17 @@ public class IntroScreen {
             }
         });
 
-        boolean isDark = loadTheme().equals("dark");
+        boolean isDark = ThemeManager.load().equals("dark") || !ThemeManager.THEMES.get(ThemeManager.load()).isDark ? ThemeManager.THEMES.get(ThemeManager.load()).isDark : true;
         ThemeButton themeBtn = new ThemeButton(isDark);
         themeBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
         themeBtn.addClickListener(e -> {
-            String next = loadTheme().equals("dark") ? "light" : "dark";
-            saveTheme(next);
+            String current = ThemeManager.load();
+            ThemeManager.ThemeInfo currentInfo = ThemeManager.THEMES.get(current);
+            String next = (currentInfo != null && currentInfo.isDark) ? "light" : "dark";
             try {
-                UIManager.setLookAndFeel(next.equals("dark")
-                    ? new FlatDarculaLaf() : new FlatIntelliJLaf());
-                themeBtn.setDark(next.equals("dark"));
+                ThemeManager.applyTheme(next);
+                boolean nowDark = ThemeManager.THEMES.containsKey(next) && ThemeManager.THEMES.get(next).isDark;
+                themeBtn.setDark(nowDark);
                 SwingUtilities.updateComponentTreeUI(introFrame);
                 introFrame.repaint();
             } catch (Exception ex) { ex.printStackTrace(); }

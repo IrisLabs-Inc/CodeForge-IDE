@@ -29,7 +29,7 @@ class LineNumberPanel extends JPanel implements CaretListener, DocumentListener 
     public LineNumberPanel(RSyntaxTextArea textArea) {
         this.textArea = textArea;
         // Set font to Consolas
-        setFont(new Font("Consolas", Font.PLAIN, 12));
+        setFont(new Font("JetBrains Mono", Font.PLAIN, 12));
         textArea.getDocument().addDocumentListener(this);
         textArea.addCaretListener(this);
         setPreferredWidth();
